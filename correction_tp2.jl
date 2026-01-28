@@ -5,34 +5,34 @@ using HiGHS
 #package to read excel files
 using XLSX
 
-Tmax = 168 #optimization for 1 week (7*24=168 hours)
+Tmax = 61320 #optimization for 1 week (7*24=168 hours)
 
 #data for load and fatal generation
-data_file = "data_eod_1_week_winter.xlsx"
+data_file = "Donnees_elec_gaz.xlsx"
 #data for load and fatal generation
-load = XLSX.readdata(data_file, "data", "C4:C171")
-wind = XLSX.readdata(data_file, "data", "D4:D171")
-solar = XLSX.readdata(data_file, "data", "E4:E171")
-hydro_fatal = XLSX.readdata(data_file, "data", "F4:F171")
-thermal_fatal = XLSX.readdata(data_file, "data", "G4:G171")
+load = XLSX.readdata(data_file, "Conso_elec", "C3:C8762")
+wind = XLSX.readdata(data_file, "Conso_elec", "D3:D8762")
+solar = XLSX.readdata(data_file, "Conso_elec", "E3:E8762")
+hydro_fatal = XLSX.readdata(data_file, "Conso_elec", "F3:F8762")
+thermal_fatal = XLSX.readdata(data_file, "Conso_elec", "G3:G8762")
 #total of RES
 Pres = wind + solar + hydro_fatal + thermal_fatal
 
 #data for thermal clusters
-Nth = 5 #number of thermal generation units
-names = XLSX.readdata(data_file, "data", "J4:J8")
+Nth = 21 #number of thermal generation units
+names = XLSX.readdata(data_file, "Parc_elec", "A2:A22")
 dict_th = Dict(i=> names[i] for i in 1:Nth)
-costs_th = XLSX.readdata(data_file, "data", "K4:K8")
-Pmin_th = XLSX.readdata(data_file, "data", "M4:M8") #MW
-Pmax_th = XLSX.readdata(data_file, "data", "L4:L8") #MW
-dmin = XLSX.readdata(data_file, "data", "N4:N8") #hours
+costs_th = XLSX.readdata(data_file, "Parc_elec", "H2:H22")
+Pmin_th = XLSX.readdata(data_file, "Parc_elec", "F2:F22") #MW
+Pmax_th = XLSX.readdata(data_file, "Parc_elec", "E2:E22") #MW
+dmin = XLSX.readdata(data_file, "Parc_elec", "G2:G22") #hours
 
 #data for hydro reservoir
 Nhy = 1 #number of hydro generation units
 Pmin_hy = zeros(Nhy)
-Pmax_hy = XLSX.readdata(data_file, "data", "R4") *ones(Nhy) #MW
-e_hy = XLSX.readdata(data_file, "data", "S4")*ones(Nhy) #MWh
-costs_hy = XLSX.readdata(data_file, "data", "Q4")*ones(Nhy) #MWh
+Pmax_hy = XLSX.readdata(data_file, "Conso_elec", "R2") *ones(Nhy) #MW
+e_hy = 24*7*XLSX.readdata(data_file, "Conso_elec", "S2")*ones(Nhy) #MWh
+costs_hy = XLSX.readdata(data_file, "Conso_elec", "Q2")*ones(Nhy) #€/MWh
 
 #costs
 cth = repeat(costs_th', Tmax) #cost of thermal generation €/MWh
@@ -46,11 +46,11 @@ cexc = 0*ones(Tmax) #cost of in excess energy €/MWh
 
 #data for STEP/battery
 #weekly STEP
-Pmax_STEP = XLSX.readdata(data_file, "data", "R5") #MW
-rSTEP = XLSX.readdata(data_file, "data", "T5")
+Pmax_STEP = XLSX.readdata(data_file, "Conso_elec", "R3") #MW
+rSTEP = XLSX.readdata(data_file, "Conso_elec", "T3")
 
 #battery
-Pmax_battery = 280 #MW
+Pmax_battery = 0 #MW
 rbattery = 0.85
 d_battery = 2 #hours
 

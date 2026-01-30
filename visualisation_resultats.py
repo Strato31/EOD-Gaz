@@ -1,12 +1,14 @@
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 import pandas as pd
 import numpy as np
 
+# Chargement des résultats
 results = pd.read_csv('results.csv', sep=';')
-print(results.shape)
-results_week = results[:169][:]
 column_labels = results.columns.tolist()
+
+results_week = results[:169]
+
 x = np.arange(len(results_week))
 print(results_week.shape)
 print(results_week.columns)

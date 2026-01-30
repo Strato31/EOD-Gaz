@@ -7,12 +7,12 @@ using XLSX
 using Dates
 
 
-
 #Tmax = 168 #optimization for 1 week (7*24=168 hours)
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
 T_1week = 168 #hours
 Nb_weeks = 10
-Tmax = 400
+Tmax = 168
+indisp_th = 0.1
 
 date_start = DateTime(2023, 1, 1, 0, 0, 0)  # exemple
 dates = date_start .+ Hour.(0:Tmax-1)
@@ -29,19 +29,21 @@ thermal_fatal = XLSX.readdata(data_file, "Conso_elec", "G3:G8762")
 Pres = wind + solar + hydro_fatal + thermal_fatal
 
 #data for thermal clusters
-Nth = 21 #number of thermal generation units
-names = XLSX.readdata(data_file, "Parc_elec", "A2:A22")
+Nth = 22 #number of thermal generation units, the 10th first are gaz
+names = XLSX.readdata(data_file, "Parc_elec", "A2:A23")
 dict_th = Dict(i=> names[i] for i in 1:Nth)
-costs_th = XLSX.readdata(data_file, "Parc_elec", "H2:H22")
-Pmin_th = XLSX.readdata(data_file, "Parc_elec", "F2:F22") #MW
-Pmax_th = XLSX.readdata(data_file, "Parc_elec", "E2:E22") #MW
-dmin = XLSX.readdata(data_file, "Parc_elec", "G2:G22") #hours
+costs_th = XLSX.readdata(data_file, "Parc_elec", "H2:H23")
+Pmin_th = XLSX.readdata(data_file, "Parc_elec", "F2:F23") #MW
+Pmax_th = (1-indisp_th)*XLSX.readdata(data_file, "Parc_elec", "E2:E23") #MW
+dmin = XLSX.readdata(data_file, "Parc_elec", "G2:G23") #hours
+pos_th_gaz = XLSX.readdata(data_file, "Parc_elec", "L2:L11") # N ou S
+
 
 #data for hydro reservoir
 Nhy = 1 #number of hydro generation units
 Pmin_hy = zeros(Nhy)
 Pmax_hy = XLSX.readdata(data_file, "Conso_elec", "R2") *ones(Nhy) #MW
-e_hy = 24*7*XLSX.readdata(data_file, "Conso_elec", "S2")*ones(Nhy) #MWh
+e_hy = XLSX.readdata(data_file, "Conso_elec", "S2")*ones(Nhy) #MWh
 costs_hy = XLSX.readdata(data_file, "Conso_elec", "Q2")*ones(Nhy) #€/MWh
 
 #costs
@@ -50,9 +52,34 @@ chy = repeat(costs_hy', Tmax) #cost of hydro generation €/MWh
 cuns = 5000*ones(Tmax) #cost of unsupplied energy €/MWh
 cexc = 0*ones(Tmax) #cost of in excess energy €/MWh
 
+#data from gaz network
+conso_CH4 = XLSX.readdata(data_file, "Conso_gaz", "F2:F8761")
+conso_H2 = XLSX.readdata(data_file, "Conso_gaz", "G2:G8761")
 
+# Rendement couplage gaz-élec
+r = Dict("CCG" => 0.6, "TAC" => 0.4, "Cogénération" => 0.5)
 
+# Découplage Nord-Sud
+ratio_N = XLSX.readdata(data_file, "Données_gaz", "F2")
+ratio_S = XLSX.readdata(data_file, "Données_gaz", "F4")
+conso_gaz_N = conso_gaz * ratio_nord
+conso_gaz_S = conso_gaz * ratio_sud
 
+conso_max_S = (XLSX.readdata(data_file, "Données_gaz", "F5") * 10^3) / 24
+conso_max_N = (XLSX.readdata(data_file, "Données_gaz", "F3") * 10^3) / 24
+
+# Stockage
+stock_inj_max = XLSX.readdata(data_file, "Données_gaz", "L4") / 24
+stock_sout_max = XLSX.readdata(data_file, "Données_gaz", "M4") / 24
+stock_max = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^3
+
+## VARIABLES
+
+@variable(model, 0 <= stock_gas[1:Tmax] <= stock_max)
+@variable(model, P_import[1:Tmax] >= 0)
+@variable(model, P_inj[1:Tmax] >= 0)
+@variable(model, P_sout[1:Tmax] >= 0)          
+@variable(model, stock[1:Tmax] >= 0)
 
 #data for STEP/battery
 #weekly STEP

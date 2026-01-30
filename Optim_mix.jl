@@ -56,6 +56,8 @@ cexc = 0*ones(Tmax) #cost of in excess energy €/MWh
 conso_CH4 = XLSX.readdata(data_file, "Conso_gaz", "F2:F8761")
 conso_H2 = XLSX.readdata(data_file, "Conso_gaz", "G2:G8761")
 
+
+
 # Rendement couplage gaz-élec
 r = Dict("CCG" => 0.6, "TAC" => 0.4, "Cogénération" => 0.5)
 
@@ -80,6 +82,8 @@ stock_max = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^3
 @variable(model, P_inj[1:Tmax] >= 0)
 @variable(model, P_sout[1:Tmax] >= 0)          
 @variable(model, stock[1:Tmax] >= 0)
+
+
 
 #data for STEP/battery
 #weekly STEP

@@ -6,9 +6,6 @@ agregate_data_by_energy_type(data, energy_type_map) : sommer les colonnes par ty
 plot_stackplot(x, data, column_labels) : tracer les courbes empilées pour les types d'énergie
 print_up_rates(data) : print les taux d'allumage
 
-
-
-TODO : plot en négatif les consommations (batteries, step pompage)
 """
 
 import matplotlib.pyplot as plt

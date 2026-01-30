@@ -89,7 +89,7 @@ def print_up_rates(data):
     print("Taux d'allumages (% d\'heures en fonctionnement):")
     print("-----------------------------------------")
     for column in data.columns:
-        if column not in ['Date', 'RES', 'Charge', 'Charge Nette']:
+        if column not in ['Date', 'RES', 'Charge', 'Charge Nette', 'load', 'net load']:
             hours_on = (data[column] > 0).sum()
             up_rate = hours_on / total_hours
             up_rates[column] = up_rate
@@ -97,9 +97,10 @@ def print_up_rates(data):
         print(f"Taux d'allumage pour {energy_type}: {rate:.2%}")
     print("-----------------------------------------")
 
+
+# appel des fonctions, tests
 aggregated_results = agregate_data_by_energy_type(results, energy_type_map)
 plot_stackplot(x_year, aggregated_results, aggregated_results.columns.tolist())
-
 print_up_rates(results)
 
 

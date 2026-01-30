@@ -12,7 +12,8 @@ using Dates
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
 T_1week = 168 #hours
 Nb_weeks = 10
-Tmax = 400
+Tmax = 168
+indisp_th = 0.1
 
 date_start = DateTime(2023, 1, 1, 0, 0, 0)  # exemple
 dates = date_start .+ Hour.(0:Tmax-1)
@@ -34,14 +35,16 @@ names = XLSX.readdata(data_file, "Parc_elec", "A2:A22")
 dict_th = Dict(i=> names[i] for i in 1:Nth)
 costs_th = XLSX.readdata(data_file, "Parc_elec", "H2:H22")
 Pmin_th = XLSX.readdata(data_file, "Parc_elec", "F2:F22") #MW
-Pmax_th = XLSX.readdata(data_file, "Parc_elec", "E2:E22") #MW
+Pmax_th = (1-indisp_th)*XLSX.readdata(data_file, "Parc_elec", "E2:E22") #MW
 dmin = XLSX.readdata(data_file, "Parc_elec", "G2:G22") #hours
+
+@show Pmax_th
 
 #data for hydro reservoir
 Nhy = 1 #number of hydro generation units
 Pmin_hy = zeros(Nhy)
 Pmax_hy = XLSX.readdata(data_file, "Conso_elec", "R2") *ones(Nhy) #MW
-e_hy = 24*7*XLSX.readdata(data_file, "Conso_elec", "S2")*ones(Nhy) #MWh
+e_hy = XLSX.readdata(data_file, "Conso_elec", "S2")*ones(Nhy) #MWh
 costs_hy = XLSX.readdata(data_file, "Conso_elec", "Q2")*ones(Nhy) #€/MWh
 
 #costs

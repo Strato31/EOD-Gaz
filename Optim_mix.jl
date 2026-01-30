@@ -54,7 +54,7 @@ cexc = 0*ones(Tmax) #cost of in excess energy €/MWh
 
 #data from gaz network
 conso_CH4 = XLSX.readdata(data_file, "Conso_gaz", "F2:F8761")
-conso_H2 = XLSX.readdata(data_file, "Conso_gaz", "G2:G8761")
+conso_H2_N = XLSX.readdata(data_file, "Conso_gaz", "G2:G8761") # pas de conso au Sud
 
 
 
@@ -64,25 +64,39 @@ r = Dict("CCG" => 0.6, "TAC" => 0.4, "Cogénération" => 0.5)
 # Découplage Nord-Sud
 ratio_N = XLSX.readdata(data_file, "Données_gaz", "F2")
 ratio_S = XLSX.readdata(data_file, "Données_gaz", "F4")
-conso_gaz_N = conso_gaz * ratio_nord
-conso_gaz_S = conso_gaz * ratio_sud
-
-conso_max_S = (XLSX.readdata(data_file, "Données_gaz", "F5") * 10^3) / 24
-conso_max_N = (XLSX.readdata(data_file, "Données_gaz", "F3") * 10^3) / 24
+conso_CH4_N = conso_CH4 * ratio_nord
+conso_CH4_S = conso_CH4 * ratio_sud
+cap_CH4_S_to_N = XLSX.readdata(data_file, "Données_gaz", "F9")/24
+cap_H2_S_to_N = XLSX.readdata(data_file, "Données_gaz", "F31")/24
 
 # Stockage
-stock_inj_max = XLSX.readdata(data_file, "Données_gaz", "L4") / 24
-stock_sout_max = XLSX.readdata(data_file, "Données_gaz", "M4") / 24
-stock_max = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^3
+cap_CH4_inj_max = XLSX.readdata(data_file, "Données_gaz", "L4") / 24
+cap_CH4_sout_max = XLSX.readdata(data_file, "Données_gaz", "M4") / 24
+stock_CH4_max_S = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^3 * 0.4
+stock_CH4_max_N = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^3 * 0.6 # on stocke là où il y a moins d'import
 
-## VARIABLES
+# production gaz CH4
+N_CH4 = 2 # 2 moyens de production de gaz au sud et 2 au nord
+Pmax_CH4_S = XLSX.readdata(data_file, "Données_gaz", "H14:H15")
+Pmax_CH4_N = XLSX.readdata(data_file, "Données_gaz", "H16:H17")
+Pmin_CH4_S = XLSX.readdata(data_file, "Données_gaz", "I14:I15")
+Pmin_CH4_N = XLSX.readdata(data_file, "Données_gaz", "I16:I17")
+dmin_CH4_S = XLSX.readdata(data_file, "Données_gaz", "J14:J15")
+dmin_CH4_N = XLSX.readdata(data_file, "Données_gaz", "J16:J17")
+costs_CH4_S = XLSX.readdata(data_file, "Données_gaz", "K14:K15")
+costs_CH4_N = XLSX.readdata(data_file, "Données_gaz", "K16:K17")
 
-@variable(model, 0 <= stock_gas[1:Tmax] <= stock_max)
-@variable(model, P_import[1:Tmax] >= 0)
-@variable(model, P_inj[1:Tmax] >= 0)
-@variable(model, P_sout[1:Tmax] >= 0)          
-@variable(model, stock[1:Tmax] >= 0)
 
+# production H2
+N_H2 = 1
+Pmax_H2_S = XLSX.readdata(data_file, "Données_gaz", "H36")
+Pmax_H2_N = XLSX.readdata(data_file, "Données_gaz", "H37")
+Pmin_H2_S = XLSX.readdata(data_file, "Données_gaz", "I36")
+Pmin_H2_N = XLSX.readdata(data_file, "Données_gaz", "I37")
+dmin_H2_S = XLSX.readdata(data_file, "Données_gaz", "J36")
+dmin_H2_N = XLSX.readdata(data_file, "Données_gaz", "J37")
+costs_H2_S = XLSX.readdata(data_file, "Données_gaz", "K36")
+costs_H2_N = XLSX.readdata(data_file, "Données_gaz", "K37")
 
 
 #data for STEP/battery
@@ -109,6 +123,26 @@ model = Model(HiGHS.Optimizer)
 @variable(model, UCth[1:Tmax,1:Nth], Bin)
 @variable(model, UPth[1:Tmax,1:Nth], Bin)
 @variable(model, DOth[1:Tmax,1:Nth], Bin)
+#CH4 variables
+@variable(model, P_CH4_S[1:Tmax,1:N_CH4] >= 0)
+@variable(model, P_CH4_N[1:Tmax,1:N_CH4] >= 0)
+@variable(model, UC_CH4_S[1:Tmax,1:N_CH4] >= 0)
+@variable(model, UC_CH4_N[1:Tmax,1:N_CH4] >= 0)
+@variable(model, UP_CH4_S[1:Tmax,1:N_CH4] >= 0)
+@variable(model, UP_CH4_N[1:Tmax,1:N_CH4] >= 0)
+@variable(model, DO_CH4_S[1:Tmax,1:N_CH4] >= 0)
+@variable(model, DO_CH4_N[1:Tmax,1:N_CH4] >= 0)
+
+@variable(model, 0 <= stock_CH4_S[1:Tmax] <= stock_CH4_max_S)
+@variable(model, 0 <= stock_CH4_N[1:Tmax] <= stock_CH4_max_N)
+@variable(model, P_inj_CH4_S[1:Tmax] >= 0)
+@variable(model, P_inj_CH4_N[1:Tmax] >= 0)
+@variable(model, P_sout_CH4_S[1:Tmax] >= 0)
+@variable(model, P_sout_CH4_N[1:Tmax] >= 0)              
+@variable(model, stock_CH4_S[1:Tmax] >= 0)          
+@variable(model, stock_CH4_N[1:Tmax] >= 0)
+#H2 variables
+
 #hydro generation variables
 @variable(model, Phy[1:Tmax,1:Nhy] >= 0)
 #unsupplied energy variables

@@ -4,16 +4,9 @@ using JuMP
 using HiGHS
 #package to read excel files
 using XLSX
-using Dates
-date_start = DateTime(2023, 1, 1, 0, 0, 0)  # exemple
-dates = date_start .+ Hour.(0:Tmax-1)
 
-
-#Tmax = 168 #optimization for 1 week (7*24=168 hours)
+Tmax = 168 #optimization for 1 week (7*24=168 hours)
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
-T_1week = 168 #hours
-Nb_weeks = 10
-Tmax = Nb_weeks*T_1week
 
 #data for load and fatal generation
 data_file = "Donnees_elec_gaz.xlsx"
@@ -171,15 +164,12 @@ touch("results.csv")
 # file handling in write mode
 f = open("results.csv", "w")
 
-write(f, "Date ; ")
 for name in names
     write(f, "$name ;")
 end
 write(f, "Hydro ; STEP pompage ; STEP turbinage ; Batterie injection ; Batterie soutirage ; RES ; load ; Net load \n")
 
 for t in 1:Tmax
-    write(f, "$(dates[t]) ; ")
-    
     for g in 1:Nth
         write(f, "$(th_gen[t,g]) ; ")
     end

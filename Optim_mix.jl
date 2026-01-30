@@ -149,7 +149,7 @@ model = Model(HiGHS.Optimizer)
 @variable(model, UP_CH4_N[1:Tmax,1:N_CH4] , Bin)
 @variable(model, DO_CH4_S[1:Tmax,1:N_CH4], Bin)
 @variable(model, DO_CH4_N[1:Tmax,1:N_CH4] , Bin)
-@variable(model, flux_CH4_S_to_N )
+@variable(model, flux_CH4_S_to_N[1:Tmax] )
 @variable(model, Puns_CH4_S[1:Tmax,1:N_CH4] >= 0)
 @variable(model, Puns_CH4_N[1:Tmax,1:N_CH4] >= 0)
 
@@ -158,9 +158,7 @@ model = Model(HiGHS.Optimizer)
 @variable(model, P_inj_CH4_S[1:Tmax] >= 0)
 @variable(model, P_inj_CH4_N[1:Tmax] >= 0)
 @variable(model, P_sout_CH4_S[1:Tmax] >= 0)
-@variable(model, P_sout_CH4_N[1:Tmax] >= 0)              
-@variable(model, stock_CH4_S[1:Tmax] >= 0)          
-@variable(model, stock_CH4_N[1:Tmax] >= 0)
+@variable(model, P_sout_CH4_N[1:Tmax] >= 0)
 
 #H2 variables
 @variable(model, P_H2_S[1:Tmax] >= 0)
@@ -187,23 +185,37 @@ model = Model(HiGHS.Optimizer)
 # #############################
 #define the objective function
 #############################
-@objective(model, Min, sum(Pth.*cth)+sum(Phy.*chy)+sum(P_CH4_S.*c_CH4_S)+sum(P_CH4_N.*c_CH4_N)+sum(P_H2_S.*c_H2_S)+sum(P_H2_N.*c_H2_N)+Puns_elec'cuns_elec+Pexc_elec'cexc_elec + (Puns_CH4_S+Puns_CH4_N).*cuns_gaz+(Puns_H2_N+Puns_H2_S)'cuns_gaz )
+@objective(model, Min,
+    sum(Pth[t,g] * cth[t,g] for t in 1:Tmax, g in 1:Nth)
+  + sum(Phy[t,h] * chy[t,h] for t in 1:Tmax, h in 1:Nhy)
+  + sum(P_CH4_S[t,g] * c_CH4_S[t,g] for t in 1:Tmax, g in 1:N_CH4)
+  + sum(P_CH4_N[t,g] * c_CH4_N[t,g] for t in 1:Tmax, g in 1:N_CH4)
+  + sum(P_H2_S[t] * c_H2_S[t,1] for t in 1:Tmax)
+  + sum(P_H2_N[t] * c_H2_N[t,1] for t in 1:Tmax)
+  + sum(Puns_elec[t] * cuns_elec[t] for t in 1:Tmax)
+  + sum(Pexc_elec[t] * cexc_elec[t] for t in 1:Tmax)
+  + sum(Puns_CH4_S[t,g] * cuns_gaz[t] for t in 1:Tmax, g in 1:N_CH4)
+  + sum(Puns_CH4_N[t,g] * cuns_gaz[t] for t in 1:Tmax, g in 1:N_CH4)
+  + sum(Puns_H2_S[t] * cuns_gaz[t] for t in 1:Tmax)
+  + sum(Puns_H2_N[t] * cuns_gaz[t] for t in 1:Tmax)
+)
+
 
 #############################
 #define the constraints
 #############################
 #balance constraint for elec
-@constraint(model, balance_elec[t in 1:Tmax], sum(Pth[t,g] for g in 1:Nth) + sum(Phy[t,h] for h in 1:Nhy) + Pres[t] + Puns[t] - load[t] - Pexc[t] - Pcharge_STEP[t] + Pdecharge_STEP[t] - Pcharge_battery[t] + Pdecharge_battery[t] - P_H2_S[t]/r{"Electrolyse"} == 0)
+@constraint(model, balance_elec[t in 1:Tmax], sum(Pth[t,g] for g in 1:Nth) + sum(Phy[t,h] for h in 1:Nhy) + Pres[t] + Puns_elec[t] - load[t] - Pexc_elec[t] - Pcharge_STEP[t] + Pdecharge_STEP[t] - Pcharge_battery[t] + Pdecharge_battery[t] - P_H2_S[t]/r["Electrolyse"] == 0)
 #balance constraint for gas
-@constraint(model, balance_CH4_S[t in 1:Tmax], sum(P_CH4_S[t,g] for g in 1:N_CH4) + P_sout_CH4_S[t] - P_inj_CH4_S[t] - conso_CH4_S[t] - flux_CH4_S_to_N[t] - sum(Pth[t,g] for g in 1:3)/r{"CCG"} - sum(Pth[t,g] for g in 4:5)/r{"TAC"} - Pth[t,6]/r{"Cogénération"} == 0)
-@constraint(model, balance_CH4_N[t in 1:Tmax], sum(P_CH4_N[t,g] for g in 1:N_CH4) + P_sout_CH4_N[t] - P_inj_CH4_N[t] - conso_CH4_N[t] + flux_CH4_S_to_N[t] - sum(Pth[t,g] for g in 7:10)/r{"CCG"} - P_H2_N[t]/r{"Vaporeformage"} == 0)
+@constraint(model, balance_CH4_S[t in 1:Tmax], sum(P_CH4_S[t,g] for g in 1:N_CH4) + P_sout_CH4_S[t] - P_inj_CH4_S[t] - conso_CH4_S[t] - flux_CH4_S_to_N[t] - sum(Pth[t,g] for g in 1:3)/r["CCG"] - sum(Pth[t,g] for g in 4:5)/r["TAC"] - Pth[t,6]/r["Cogénération"] == 0)
+@constraint(model, balance_CH4_N[t in 1:Tmax], sum(P_CH4_N[t,g] for g in 1:N_CH4) + P_sout_CH4_N[t] - P_inj_CH4_N[t] - conso_CH4_N[t] + flux_CH4_S_to_N[t] - sum(Pth[t,g] for g in 7:10)/r["CCG"] - P_H2_N[t]/r["Vaporeformage"] == 0)
 @constraint(model, balance_H2_S[t in 1:Tmax], P_H2_S[t] - flux_H2_S_to_N[t] ==0)
 @constraint(model, balance_H2_N[t in 1:Tmax], P_H2_N[t] + flux_H2_S_to_N[t] - conso_H2_N[t] ==0)
 #Pmax constraints
 @constraint(model, max_th[t in 1:Tmax, g in 1:Nth], Pth[t,g] <= Pmax_th[g]*UCth[t,g])
 @constraint(model, max_CH4_N[t in 1:Tmax, g in 1:N_CH4], P_CH4_N[t,g] <= Pmax_CH4_N[g]*UC_CH4_N[t,g])
 @constraint(model, max_CH4_S[t in 1:Tmax, g in 1:N_CH4], P_CH4_S[t,g] <= Pmax_CH4_S[g]*UC_CH4_S[t,g])
-@constraint(model, max_H2_N[t in 1:Tmax], P_CH4_N[t] <= Pmax_H2_N*UC_H2_N[t])
+@constraint(model, max_H2_N[t in 1:Tmax], P_H2_N[t] <= Pmax_H2_N*UC_H2_N[t])
 @constraint(model, max_H2_S[t in 1:Tmax], P_H2_S[t] <= Pmax_H2_S*UC_H2_S[t])
 @constraint(model, max_flux_CH4[t in 1:Tmax], flux_CH4_S_to_N[t] <= cap_CH4_S_to_N)
 @constraint(model, max_flux_H2[t in 1:Tmax], flux_H2_S_to_N[t] <= cap_H2_S_to_N)
@@ -212,7 +224,7 @@ model = Model(HiGHS.Optimizer)
 @constraint(model, min_th[t in 1:Tmax, g in 1:Nth], Pmin_th[g]*UCth[t,g] <= Pth[t,g])
 @constraint(model, min_CH4_N[t in 1:Tmax, g in 1:N_CH4], Pmin_CH4_N[g]*UC_CH4_N[t,g] <= P_CH4_N[t,g] )
 @constraint(model, min_CH4_S[t in 1:Tmax, g in 1:N_CH4], P_CH4_S[t,g] >= Pmin_CH4_S[g]*UC_CH4_S[t,g])
-@constraint(model, min_H2_N[t in 1:Tmax], P_CH4_N[t] >= Pmin_H2_N*UC_H2_N[t])
+@constraint(model, min_H2_N[t in 1:Tmax], P_H2_N[t] >= Pmin_H2_N*UC_H2_N[t])
 @constraint(model, min_H2_S[t in 1:Tmax], P_H2_S[t] >= Pmin_H2_S*UC_H2_S[t])
 @constraint(model, min_flux_H2[t in 1:Tmax], flux_H2_S_to_N[t] >= - cap_H2_S_to_N)
 
@@ -303,7 +315,8 @@ end
 @constraint(model, inj_max_CH4_S[t in 1:Tmax], P_inj_CH4_S[t] <= cap_CH4_inj_max)
 @constraint(model, sout_max_CH4_S[t in 1:Tmax], P_sout_CH4_S[t] <= cap_CH4_sout_max)
 @constraint(model, init_stock_CH4_S, stock_CH4_S[1] == 0)
-@constraint(model, lev_stock_S[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_S <= stock_CH4_S[t] <= high_lev_CH4[t]*stock_CH4_max_S)
+@constraint(model, high_lev_stock_S[t in 1:Tmax], stock_CH4_S[t] <= high_lev_CH4[t]*stock_CH4_max_S)
+@constraint(model, low_lev_stock_S[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_S <= stock_CH4_S[t])
 #@constraint(model, end_stock_CH4_S, stock_CH4_S[Tmax] == stock_CH4_S[1])
 
 @constraint(model, evol_stock_CH4_N[t in 1:Tmax-1], stock_CH4_N[t+1] - stock_CH4_N[t] - P_inj_CH4_N[t] + P_sout_CH4_N[t] == 0)
@@ -311,8 +324,10 @@ end
 @constraint(model, inj_max_CH4_N[t in 1:Tmax], P_inj_CH4_N[t] <= cap_CH4_inj_max)
 @constraint(model, sout_max_CH4_N[t in 1:Tmax], P_sout_CH4_N[t] <= cap_CH4_sout_max)
 @constraint(model, init_stock_CH4_N, stock_CH4_N[1] == 0)
-@constraint(model, lev_stock_N[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_N <= stock_CH4_N[t] <= high_lev_CH4[t]*stock_CH4_max_N)
+@constraint(model, high_lev_stock_N[t in 1:Tmax],  stock_CH4_N[t] <= high_lev_CH4[t]*stock_CH4_max_N)
+@constraint(model, low_lev_stock_N[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_N <= stock_CH4_N[t] )
 #@constraint(model, end_stock_CH4_N, stock_CH4_N[Tmax] == stock_CH4_N[1])
+
 
 
 #TODO: solve and analyse the results

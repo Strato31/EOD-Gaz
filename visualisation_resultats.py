@@ -13,21 +13,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-<<<<<<< HEAD
-# Chargement des résultats
-results = pd.read_csv('results.csv', sep=';')
-column_labels = results.columns.tolist()
-
-results_week = results[:169]
-
-x = np.arange(len(results_week))
-print(results_week.shape)
-print(results_week.columns)
-plt.figure(figsize=(10, 6))
-plt.stackplot(x, *[results_week.iloc[:, i] for i in range(1,results_week.shape[1]-2)], labels=column_labels[1:])
-plt.legend(loc='upper left')
-plt.show()
-=======
 # Chargement des données
 results = pd.read_csv('results.csv', sep=';')
 results.columns = results.columns.str.strip() #retirer les espaces dans les noms de colonnes
@@ -118,5 +103,4 @@ aggregated_results = agregate_data_by_energy_type(results, energy_type_map)
 plot_stackplot(x_year, aggregated_results, aggregated_results.columns.tolist())
 print_up_rates(results)
 
->>>>>>> 3a9af5d0b60c07cd1059f4bb051f5c8a797f1e5d
 

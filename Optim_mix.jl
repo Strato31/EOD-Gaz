@@ -309,14 +309,15 @@ end
 @constraint(model, evol_stock_battery[t in 1:Tmax-1], stock_battery[t+1]-stock_battery[t]- rbattery*Pcharge_battery[t]+1/rbattery*Pdecharge_battery[t]== 0)
 @constraint(model, stock_max_battery[t in 1:Tmax], stock_battery[t] <= d_battery*Pmax_battery)
 
-
-@constraint(model, evol_stock_CH4_S[t in 1:Tmax-1], stock_CH4_S[t+1] - stock_CH4_S[t] - P_inj_CH4_S[t] + P_sout_CH4_S[t] == 0)
-@constraint(model, stock_max_CH4_S[t in 1:Tmax], stock_CH4_S[t] <= stock_CH4_max_S)
-@constraint(model, inj_max_CH4_S[t in 1:Tmax], P_inj_CH4_S[t] <= cap_CH4_inj_max)
-@constraint(model, sout_max_CH4_S[t in 1:Tmax], P_sout_CH4_S[t] <= cap_CH4_sout_max)
+# stockage CH4
+# @constraint(model, evol_stock_CH4_S[t in 1:Tmax-1], stock_CH4_S[t+1] - stock_CH4_S[t] - P_inj_CH4_S[t] + P_sout_CH4_S[t] == 0)
+# @constraint(model, stock_max_CH4_S[t in 1:Tmax], stock_CH4_S[t] <= stock_CH4_max_S)
+# @constraint(model, inj_max_CH4_S[t in 1:Tmax], P_inj_CH4_S[t] <= cap_CH4_inj_max)
+# @constraint(model, sout_max_CH4_S[t in 1:Tmax], P_sout_CH4_S[t] <= cap_CH4_sout_max)
 @constraint(model, init_stock_CH4_S, stock_CH4_S[1] == 0)
 @constraint(model, high_lev_stock_S[t in 1:Tmax], stock_CH4_S[t] <= high_lev_CH4[t]*stock_CH4_max_S)
 @constraint(model, low_lev_stock_S[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_S <= stock_CH4_S[t])
+
 #@constraint(model, end_stock_CH4_S, stock_CH4_S[Tmax] == stock_CH4_S[1])
 
 @constraint(model, evol_stock_CH4_N[t in 1:Tmax-1], stock_CH4_N[t+1] - stock_CH4_N[t] - P_inj_CH4_N[t] + P_sout_CH4_N[t] == 0)
@@ -326,6 +327,7 @@ end
 @constraint(model, init_stock_CH4_N, stock_CH4_N[1] == 0)
 @constraint(model, high_lev_stock_N[t in 1:Tmax],  stock_CH4_N[t] <= high_lev_CH4[t]*stock_CH4_max_N)
 @constraint(model, low_lev_stock_N[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_N <= stock_CH4_N[t] )
+
 #@constraint(model, end_stock_CH4_N, stock_CH4_N[Tmax] == stock_CH4_N[1])
 
 

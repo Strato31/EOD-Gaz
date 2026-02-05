@@ -76,6 +76,7 @@ stock_CH4_max_S = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^6 * 0.4
 stock_CH4_max_N = XLSX.readdata(data_file, "Données_gaz", "K4")* 10^6 * 0.6 # on stocke là où il y a moins d'import
 high_lev_CH4 = XLSX.readdata(data_file, "Conso_gaz", "N2:N8761")
 low_lev_CH4 = XLSX.readdata(data_file, "Conso_gaz", "O2:O8761")
+c_slack_CH4 = 1e6  # €/MWh (à ajuster selon ton modèle)
 
 # production gaz CH4
 N_CH4 = 2 # 2 moyens de production de gaz au sud et 2 au nord
@@ -159,6 +160,11 @@ model = Model(HiGHS.Optimizer)
 @variable(model, P_inj_CH4_N[1:Tmax] >= 0)
 @variable(model, P_sout_CH4_S[1:Tmax] >= 0)
 @variable(model, P_sout_CH4_N[1:Tmax] >= 0)
+@variable(model, slack_CH4_S_low[1:Tmax] >= 0)
+@variable(model, slack_CH4_S_high[1:Tmax] >= 0)
+@variable(model, slack_CH4_N_low[1:Tmax] >= 0)
+@variable(model, slack_CH4_N_high[1:Tmax] >= 0)
+
 
 #H2 variables
 @variable(model, P_H2_S[1:Tmax] >= 0)
@@ -198,6 +204,7 @@ model = Model(HiGHS.Optimizer)
   + sum(Puns_CH4_N[t,g] * cuns_gaz[t] for t in 1:Tmax, g in 1:N_CH4)
   + sum(Puns_H2_S[t] * cuns_gaz[t] for t in 1:Tmax)
   + sum(Puns_H2_N[t] * cuns_gaz[t] for t in 1:Tmax)
+  + c_slack_CH4 * ( sum(slack_CH4_S_low[t] + slack_CH4_S_high[t] for t in 1:Tmax) + sum(slack_CH4_N_low[t] + slack_CH4_N_high[t] for t in 1:Tmax) )
 )
 
 
@@ -315,8 +322,9 @@ end
 @constraint(model, inj_max_CH4_S[t in 1:Tmax], P_inj_CH4_S[t] <= cap_CH4_inj_max)
 @constraint(model, sout_max_CH4_S[t in 1:Tmax], P_sout_CH4_S[t] <= cap_CH4_sout_max)
 @constraint(model, init_stock_CH4_S, stock_CH4_S[1] == 0)
-@constraint(model, high_lev_stock_S[t in 1:Tmax], stock_CH4_S[t] <= high_lev_CH4[t]*stock_CH4_max_S)
-@constraint(model, low_lev_stock_S[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_S <= stock_CH4_S[t])
+@constraint(model, stock_CH4_S_high[t in 1:Tmax], stock_CH4_S[t] <= high_lev_CH4[t]*stock_CH4_max_S + slack_CH4_S_high[t])
+@constraint(model, stock_CH4_S_low[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_S - slack_CH4_S_low[t] <= stock_CH4_S[t])
+
 #@constraint(model, end_stock_CH4_S, stock_CH4_S[Tmax] == stock_CH4_S[1])
 
 @constraint(model, evol_stock_CH4_N[t in 1:Tmax-1], stock_CH4_N[t+1] - stock_CH4_N[t] - P_inj_CH4_N[t] + P_sout_CH4_N[t] == 0)
@@ -324,8 +332,9 @@ end
 @constraint(model, inj_max_CH4_N[t in 1:Tmax], P_inj_CH4_N[t] <= cap_CH4_inj_max)
 @constraint(model, sout_max_CH4_N[t in 1:Tmax], P_sout_CH4_N[t] <= cap_CH4_sout_max)
 @constraint(model, init_stock_CH4_N, stock_CH4_N[1] == 0)
-@constraint(model, high_lev_stock_N[t in 1:Tmax],  stock_CH4_N[t] <= high_lev_CH4[t]*stock_CH4_max_N)
-@constraint(model, low_lev_stock_N[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_N <= stock_CH4_N[t] )
+@constraint(model, stock_CH4_N_high[t in 1:Tmax], stock_CH4_N[t] <= high_lev_CH4[t]*stock_CH4_max_N + slack_CH4_N_high[t])
+@constraint(model, stock_CH4_N_low[t in 1:Tmax], low_lev_CH4[t]*stock_CH4_max_N - slack_CH4_N_low[t] <= stock_CH4_N[t])
+
 #@constraint(model, end_stock_CH4_N, stock_CH4_N[Tmax] == stock_CH4_N[1])
 
 

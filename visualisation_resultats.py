@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 
 # Chargement des données
-results = pd.read_csv('results.csv', sep=';')
+results = pd.read_csv('results_with_gaz.csv', sep=';')
 results.columns = results.columns.str.strip() #retirer les espaces dans les noms de colonnes
 column_labels = results.columns.tolist() # Liste des labels des colonnes
 x_year = np.arange(len(results)) # Axe des x pour une année complète

@@ -12,12 +12,13 @@ import matplotlib.pyplot as plt
 # import seaborn as sns
 import pandas as pd
 import numpy as np
+import seaborn as sns
 
 # Chargement des données
 results = pd.read_csv('results_with_gaz.csv', sep=';')
 results.columns = results.columns.str.strip() #retirer les espaces dans les noms de colonnes
 column_labels = results.columns.tolist() # Liste des labels des colonnes
-x_year = np.arange(len(results)) # Axe des x pour une année complète
+x_total = np.arange(len(results)) # Axe des x pour une année complète
 
 # Sélection d'une semaine spécifique (par exemple, de l'index 100 à 268)
 results_short = results.iloc[100:269, :]
@@ -26,18 +27,18 @@ x_short = np.arange(len(results_short)) # Axe des x pour la semaine sélectionn�
 # Map des types d'énergie aux colonnes correspondantes
 energy_type_map = {
     'Nuclear': ['Iconuc1', 'Iconuc2', 'Tabarnuc1', 'Tabarnuc2', 'NucPlusUltra1', 'NucPlusUltra2'],
-    'Gaz': ['Gazby', 'Pégaz', 'Samagaz', 'Omaïgaz1', 'Omaïgaz2', 'Gastafiore', 'Igaznodon1', 'Igaznodon2', 'Cogénérations'],
+    'Gaz': ['Gazby', 'Omaïgaz1', 'Omaïgaz2', 'Igaznodon1', 'Igaznodon2', 'Cogénérations', 'Pégaz', 'Samagaz1', 'Samagaz2', 'Gastafiore'],
     'Charbon': ['Coron1', 'Coron2', 'Mockingjay', 'Lantier'],
     'Biomasse': ['Tacotac'],
     'Fioul': ['TicEtTac'],
     'Hydro': ['Hydro'],
-    'STEP Pompage': ['STEP pompage'],
-    'STEP Turbinage': ['STEP turbinage'],
-    'Batterie Injection': ['Batterie injection'],
-    'Batterie Soutirage': ['Batterie soutirage'],
+    'STEP Pompage': ['STEP_pompage'],
+    'STEP Turbinage': ['STEP_turbinage'],
+    'Batterie Injection': ['Batt_inj'],
+    'Batterie Soutirage': ['Batt_sout'],
     'RES': ['RES'],
-    'Charge': ['load'],
-    'Charge Nette': ['Net load']
+    'Charge': ['Load'],
+    'Charge Nette': ['Net_load']
 }
 
 def agregate_data_by_energy_type(data, energy_type_map):
@@ -49,24 +50,29 @@ def agregate_data_by_energy_type(data, energy_type_map):
     return aggregated_data
 
 
-def plot_stackplot(x, data, column_labels):
+def plot_stackplot_energie(x, data, column_labels):
     """Fait les courbes empilées pour les différents types de production d'énergie non fatales"""
     plt.figure(figsize=(10, 6))
 
-    # Tracé des courbes empilées
-    if len(column_labels)-4 == 10: 
-        # couleurs choisies pour 10 types d'énergie si données agrégées utilisées
-        colors = ['yellow', 'grey', 'black', 'green', 'black', 'blue', 'pink', 'purple', 'orange', 'red']
-    else:
-        # palette générique pour d'autres cas
-        colors = sns.color_palette("hsv", len(column_labels)-4)
     # plot en négatif des colonnes de consommation (STEP pompage, Batterie soutirage)
-    for _, col in enumerate(column_labels[1:data.shape[1]-3]):
+    for _, col in enumerate(column_labels[1:27]):
         if col in ['STEP Pompage', 'Batterie Soutirage']:
             data[col] = -data[col]
+
+    # Tracé des courbes empilées
+    if len(column_labels) == 14: 
+        # couleurs choisies pour 10 types d'énergie si données agrégées utilisées
+        colors = ['yellow', 'grey', 'black', 'green', 'black', 'blue', 'pink', 'purple', 'orange', 'red']
+        # Tracé des courbes empilées pour les types d'énergie sauf les 3 dernières colonnes (RES, Charge, Charge Nette)
+        plt.stackplot(x, *[data.iloc[:, i] for i in range(1,10)], labels=column_labels[1:10], colors=colors)
+    else:
+        # palette générique pour d'autres cas
+        colors = sns.color_palette("hsv", 27)
+        # Tracé des courbes empilées pour les types d'énergie sauf les 3 dernières colonnes (RES, Charge, Charge Nette)
+        plt.stackplot(x, *[data.iloc[:, i] for i in range(1,27)], labels=column_labels[1:27], colors=colors)
     
-    # Tracé des courbes empilées pour les types d'énergie sauf les 3 dernières colonnes (RES, Charge, Charge Nette)
-    plt.stackplot(x, *[data.iloc[:, i] for i in range(1,data.shape[1]-3)], labels=column_labels[1:], colors=colors)
+    
+    
     
     # Ajout de la courbe de charge nette : on teste les deux noms possibles
     try :
@@ -98,9 +104,20 @@ def print_up_rates(data):
     print("-----------------------------------------")
 
 
+#######GAZ#########
+# plots des évolutions de stockage gaz nord et sud, et le flux nord/sud
+plt.figure(figsize=(10, 6))
+plt.plot(x_total, results['CH4_N_stock'], label='Stockage Gaz Nord', color='blue')
+plt.plot(x_total, results['CH4_S_stock'], label='Stockage Gaz Sud', color='orange')
+plt.plot(x_total, results['CH4_flux_S_N'], label='Flux Gaz Nord-Sud', color='green')
+plt.title('Évolution du stockage de gaz (Nord et Sud)')
+plt.legend()
+plt.show()
+
+
 # appel des fonctions, tests
 aggregated_results = agregate_data_by_energy_type(results, energy_type_map)
-plot_stackplot(x_year, aggregated_results, aggregated_results.columns.tolist())
+plot_stackplot_energie(x_total, aggregated_results, aggregated_results.columns.tolist())
 print_up_rates(results)
 
 

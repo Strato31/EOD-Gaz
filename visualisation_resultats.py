@@ -186,7 +186,7 @@ results.columns = results.columns.str.strip()  # Retirer les espaces dans les no
 results_short = results.iloc[100:269, :]
 x_short = np.arange(len(results_short)) # Axe des x pour la semaine sélectionnée
 
-# Aggrégation des données par type d'énergie
+# Agrégation des données par type d'énergie
 aggregated_results = agregate_data_by_energy_type(results, energy_type_map)
 # Print des taux d'allumage pour chaque type de centrale
 print_up_rates(aggregated_results)

@@ -175,9 +175,9 @@ if week_id == 0
     stock_battery_init = 0.0
     stock_CH4_S_init = 0.525*8*10^6
     stock_CH4_N_init = 0.525*12*10^6 # 60% du stockage CH4 au Nord rempli au niveau moyen pour un 1er janvier
-    init_UC = false
+    init = false
 else
-    init_UC = true
+    init = true
 
     # --- Initialisation des UC ---
     df = CSV.read("Results/result_S$(week_id-1).csv", DataFrame; delim=';')
@@ -185,7 +185,6 @@ else
    last_row = df[end, :]  # dernière ligne du DataFrame
 
    stock_STEP_init = df[end, "stock_STEP"]
-   println(stock_STEP_init)
    stock_battery_init = df[end, "stock_battery"]
    stock_CH4_S_init   = df[end, "stock_CH4_S"]
    stock_CH4_N_init   = df[end, "stock_CH4_N"]
@@ -441,7 +440,7 @@ end"""
 
 
 for g in 1:Nth
-    if init_UC 
+    if init 
         T_end = lastindex(UPth_init, 1)
         @constraint(model, [t in 1:dmin[g]-1], UCth[t,g] >= sum(UPth[i,g] for i in 1:t) + sum(UPth_init[T_end-i+1,g] for i in 1:dmin[g]-t))
         @constraint(model, [t in 1:dmin[g]-1], UCth[t,g] <= 1 - (sum(DOth[i,g] for i in 1:t) + sum(DOth[T_end-i+1,g] for i in 1:dmin[g]-t)))
@@ -453,7 +452,7 @@ for g in 1:Nth
 end
 
 for g in 1:N_CH4
-    if init_UC 
+    if init 
         T_end = lastindex(UPth_init, 1)
         @constraint(model, [t in 1:dmin_CH4_N[g]-1], UC_CH4_N[t,g] >= sum(UP_CH4_N[i,g] for i in 1:t) + sum(UP_CH4_N_init[T_end-i+1,g] for i in 1:dmin_CH4_N[g]-t))
         @constraint(model, [t in 1:dmin_CH4_N[g]-1], UC_CH4_N[t,g] <= 1 - (sum(DO_CH4_N[i,g] for i in 1:t) + sum(DO_CH4_N_init[T_end-i+1,g] for i in 1:dmin_CH4_N[g]-t)))
@@ -468,7 +467,7 @@ for g in 1:N_CH4
     
 end
 
-if init_UC 
+if init 
     T_end = lastindex(UPth_init, 1)
     @constraint(model, [t in 1:dmin_H2_N-1], UC_H2_N[t] >= sum(UP_H2_N[i] for i in 1:t) + sum(UP_H2_N_init[T_end-i+1] for i in 1:dmin_H2_N-t))
     @constraint(model, [t in 1:dmin_H2_N-1], UC_H2_N[t] <= 1 - (sum(DO_H2_N[i] for i in 1:t) + sum(DO_H2_N_init[T_end-i+1] for i in 1:dmin_H2_N-t)))

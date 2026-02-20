@@ -1,6 +1,38 @@
 import pandas as pd
 import numpy as np
+import os
 
+# ==========================
+# FUSION DES FICHIERS RÉSULTATS
+# ==========================
+
+RESULTS_DIR = "Results"  # Le dossier où Julia enregistre les CSV
+all_files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("result_S") and f.endswith(".csv")]
+
+# Tri naturel pour s'assurer que S10 ne vient pas avant S2 (tri par numéro de semaine)
+all_files.sort(key=lambda x: int(x.replace("result_S", "").replace(".csv", "")))
+
+print(f"📂 Fusion de {len(all_files)} fichiers trouvés dans {RESULTS_DIR}...")
+
+list_df = []
+for filename in all_files:
+    path = os.path.join(RESULTS_DIR, filename)
+    # On lit chaque fichier (attention au séparateur ";" utilisé dans ton code Julia)
+    temp_df = pd.read_csv(path, sep=";", encoding="utf-8")
+    list_df.append(temp_df)
+
+# On concatène tout le monde
+df = pd.concat(list_df, ignore_index=True)
+
+# Nettoyage des colonnes (espaces blancs)
+df.columns = [c.strip() for c in df.columns]
+
+# Conversion des dates et tri chronologique
+df["Date"] = pd.to_datetime(df["Date"])
+df = df.sort_values("Date").set_index("Date")
+
+# Optionnel : Sauvegarde du fichier global pour ton usage futur
+df.to_csv("results_yearly_hourly.csv", sep=";")
 # ==========================
 # PARAMÈTRES
 # ==========================

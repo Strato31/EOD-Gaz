@@ -6,6 +6,7 @@ using HiGHS
 using XLSX
 using Dates
 using Printf, Dates
+using CSV, DataFrames
 
 fmt(x) = isnan(x) ? "" : @sprintf("%.6f", x)
 fmt_int(x) = string(Int(round(x)))
@@ -54,14 +55,37 @@ UC_init doit être un vecteur de 0/1, de la plus ancienne à la plus récente.
     return count_uc
 end
 
+function count_down(UC_init::Vector{Int}, dmin::Int)
+    """
+Compte combien de pas consécutifs l'unité a été éteinte à partir de la fin de UC_init.
+UC_init doit être un vecteur de 0/1, de la plus ancienne à la plus récente.
+"""
+    count_off = 0
+    i = length(UC_init)
+    
+    while i > 0
+        if UC_init[i] == 1
+            break
+        elseif count_off == dmin
+            break
+        else
+            count_off += 1
+            i -= 1
+        end
+    end
+    
+    return count_off
+end
+
 
 #Tmax = 168 #optimization for 1 week (7*24=168 hours)
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
+length_anneau_garde = 72 #heures
 T_1week = 168
 t_start = week_id * T_1week + 1
-t_end   = (week_id + 1) * T_1week
+t_end   = (week_id + 1) * T_1week + length_anneau_garde
 
-Tmax = 168
+Tmax = 168 + length_anneau_garde
 indisp_th = 0.1
 
 date_start = DateTime(2023, 1, 1, 0, 0, 0) + Week(week_id)
@@ -76,11 +100,11 @@ prev_idx = findfirst(d -> Date(d) == target_date_prev, dates)
 #data for load and fatal generation
 data_file = "Donnees_elec_gaz.xlsx"
 #data for load and fatal generation
-load_full = XLSX.readdata(data_file, "Conso_elec", "C3:C8762")
-wind_full = XLSX.readdata(data_file, "Conso_elec", "D3:D8762")
-solar_full = XLSX.readdata(data_file, "Conso_elec", "E3:E8762")
-hydro_fatal_full = XLSX.readdata(data_file, "Conso_elec", "F3:F8762")
-thermal_fatal_full = XLSX.readdata(data_file, "Conso_elec", "G3:G8762")
+load_full = XLSX.readdata(data_file, "Conso_elec", "C3:C9506")
+wind_full = XLSX.readdata(data_file, "Conso_elec", "D3:D9506")
+solar_full = XLSX.readdata(data_file, "Conso_elec", "E3:E9506")
+hydro_fatal_full = XLSX.readdata(data_file, "Conso_elec", "F3:F9506")
+thermal_fatal_full = XLSX.readdata(data_file, "Conso_elec", "G3:G9506")
 
 load = load_full[t_start:t_end]
 wind = wind_full[t_start:t_end]
@@ -116,8 +140,8 @@ cuns_elec = 5000*ones(Tmax) #cost of unsupplied energy €/MWh
 cexc_elec = 0*ones(Tmax) #cost of in excess energy €/MWh
 
 #data from gaz network
-conso_CH4_full = XLSX.readdata(data_file, "Conso_gaz", "F2:F8761") .* 1e3
-conso_H2_N_full = XLSX.readdata(data_file, "Conso_gaz", "G2:G8761") .* 1e3 # pas de conso au Sud
+conso_CH4_full = XLSX.readdata(data_file, "Conso_gaz", "F2:F9506") .* 1e3
+conso_H2_N_full = XLSX.readdata(data_file, "Conso_gaz", "G2:G9506") .* 1e3 # pas de conso au Sud
 
 conso_CH4 = conso_CH4_full[t_start:t_end]
 conso_H2_N = conso_H2_N_full[t_start:t_end]
@@ -140,8 +164,8 @@ cap_CH4_inj_max = XLSX.readdata(data_file, "Données_gaz", "L4") * 10^3/ 24
 cap_CH4_sout_max = XLSX.readdata(data_file, "Données_gaz", "M4")* 10^3 / 24
 stock_CH4_max_S = XLSX.readdata(data_file, "Données_gaz", "K4") * 10^6 * 0.4
 stock_CH4_max_N = XLSX.readdata(data_file, "Données_gaz", "K4")* 10^6 * 0.6 # on stocke là où il y a moins d'import
-high_lev_CH4_full = XLSX.readdata(data_file, "Conso_gaz", "N2:N8761")
-low_lev_CH4_full  = XLSX.readdata(data_file, "Conso_gaz", "O2:O8761")
+high_lev_CH4_full = XLSX.readdata(data_file, "Conso_gaz", "N2:N9506")
+low_lev_CH4_full  = XLSX.readdata(data_file, "Conso_gaz", "O2:O9506")
 
 high_lev_CH4 = high_lev_CH4_full[t_start:t_end]
 low_lev_CH4  = low_lev_CH4_full[t_start:t_end]
@@ -199,35 +223,41 @@ if week_id == 0
     init_UC = false
 else
     init_UC = true
-    state = read_initial_state("Results/result_S$(week_id-1).csv")
+    # On lit le fichier de la semaine précédente
+    path_prev = "Results/result_S$(week_id-1).csv"
+    df = CSV.read(path_prev, DataFrame; delim=';')
+    
+    # On récupère la toute dernière ligne (le dernier pas de temps de la semaine d'avant)
+    last_row = df[end, :]
+ 
+    stock_STEP_init    = last_row["stock_STEP"]
+    stock_battery_init = last_row["stock_battery"]
+    stock_CH4_S_init   = last_row["stock_CH4_S"]
+    stock_CH4_N_init   = last_row["stock_CH4_N"]
+    
+    # --- Initialisation des UC (Unit Commitment) ---
+    # On récupère l'état (0 ou 1) à la dernière heure
+    UCth_init = [Int(last_row["UCth_$g"]) for g in 1:Nth]
+    UC_CH4_S_init = Int(last_row["UC_CH4_S"])
+    UC_H2_S_init = Int(last_row["UC_H2_S"])
+    UC_H2_N_init = Int(last_row["UC_H2_N"])
 
-    stock_STEP_init = state["stock_STEP"]
-    stock_battery_init = state["stock_battery"]
-    stock_CH4_S_init = state["stock_CH4_S"]
-    stock_CH4_N_init = state["stock_CH4_N"]
-    # --- Initialisation des UC ---
-    UCth_init = [Int(state["UCth_$g"]) for g in 1:Nth]
-    UC_CH4_S_init = [Int(state["UC_CH4_S_$g"]) for g in 1:N_CH4]
-    UC_CH4_N_init = [Int(state["UC_CH4_N_$g"]) for g in 1:N_CH4]
-    UC_H2_S_init = Int(state["UC_H2_S"])
-    UC_H2_N_init = Int(state["UC_H2_N"])
+    # --- Comptage des temps de fonctionnement ---
+    # Note : Comme on n'a que la dernière ligne, on initialise le compteur à 1 
+    # ou on peut améliorer en relisant tout le vecteur du CSV précédent.
+    
+    UCth_init_count_on = [UCth_init[g] == 1 ? 1 : 0 for g in 1:Nth]
+    UCth_init_count_off = [UCth_init[g] == 0 ? 1 : 0 for g in 1:Nth]
 
-
-    # Comptage des pas consécutifs allumés
-    UCth_init_count = zeros(Int, Nth)
-    for g in 1:Nth
-        UCth_init_count[g] = count_up([UCth_init[g]], dmin[g])
-    end
-
-    UC_CH4_S_count = zeros(Int, N_CH4)
-    UC_CH4_N_count = zeros(Int, N_CH4)
-    for g in 1:N_CH4
-        UC_CH4_S_count[g] = count_up([UC_CH4_S_init[g]], dmin_CH4_S[g])
-        UC_CH4_N_count[g] = count_up([UC_CH4_N_init[g]], dmin_CH4_N[g])
-    end
-
-    UC_H2_S_count = count_up([UC_H2_S_init], dmin_H2_S)
-    UC_H2_N_count = count_up([UC_H2_N_init], dmin_H2_N)
+    # Correction pour le Gaz S
+    UC_CH4_S_count_on = (UC_CH4_S_init == 1 ? 1 : 0)
+    UC_CH4_S_count_off = (UC_CH4_S_init == 0 ? 1 : 0)
+    
+    # Correction pour H2 (Variables renommées pour éviter les erreurs d'undefined)
+    UC_H2_S_count_on = (UC_H2_S_init == 1 ? 1 : 0)
+    UC_H2_S_count_off = (UC_H2_S_init == 0 ? 1 : 0)
+    UC_H2_N_count_on = (UC_H2_N_init == 1 ? 1 : 0)
+    UC_H2_N_count_off = (UC_H2_N_init == 0 ? 1 : 0)
 end
 
 #############################
@@ -254,12 +284,9 @@ model = Model(HiGHS.Optimizer)
 #CH4 variables
 @variable(model, P_CH4_S[1:Tmax,1:N_CH4] >= 0)
 @variable(model, P_CH4_N[1:Tmax,1:N_CH4] >= 0)
-@variable(model, UC_CH4_S[1:Tmax,1:N_CH4], Bin)
-@variable(model, UC_CH4_N[1:Tmax,1:N_CH4] , Bin)
-@variable(model, UP_CH4_S[1:Tmax,1:N_CH4] , Bin)
-@variable(model, UP_CH4_N[1:Tmax,1:N_CH4] , Bin)
-@variable(model, DO_CH4_S[1:Tmax,1:N_CH4], Bin)
-@variable(model, DO_CH4_N[1:Tmax,1:N_CH4] , Bin)
+@variable(model, UC_CH4_S[1:Tmax], Bin)
+@variable(model, UP_CH4_S[1:Tmax] , Bin)
+@variable(model, DO_CH4_S[1:Tmax], Bin)
 @variable(model, flux_CH4_S_to_N[1:Tmax] )
 @variable(model, Puns_CH4_S[1:Tmax,1:N_CH4] >= 0)
 @variable(model, Puns_CH4_N[1:Tmax,1:N_CH4] >= 0)
@@ -330,8 +357,9 @@ model = Model(HiGHS.Optimizer)
 @constraint(model, balance_H2_N[t in 1:Tmax], P_H2_N[t] + flux_H2_S_to_N[t] - conso_H2_N[t] ==0)
 #Pmax constraints
 @constraint(model, max_th[t in 1:Tmax, g in 1:Nth], Pth[t,g] <= Pmax_th[g]*UCth[t,g])
-@constraint(model, max_CH4_N[t in 1:Tmax, g in 1:N_CH4], P_CH4_N[t,g] <= Pmax_CH4_N[g]*UC_CH4_N[t,g])
-@constraint(model, max_CH4_S[t in 1:Tmax, g in 1:N_CH4], P_CH4_S[t,g] <= Pmax_CH4_S[g]*UC_CH4_S[t,g])
+@constraint(model, max_CH4_N[t in 1:Tmax, g in 1:N_CH4], P_CH4_N[t,g] == Pmax_CH4_N[g])
+@constraint(model, [t in 1:Tmax], P_CH4_S[t,1] == Pmax_CH4_S[1])
+@constraint(model, [t in 1:Tmax], P_CH4_S[t,N_CH4] <= Pmax_CH4_S[N_CH4]*UC_CH4_S[t])
 @constraint(model, max_H2_N[t in 1:Tmax], P_H2_N[t] <= Pmax_H2_N*UC_H2_N[t])
 @constraint(model, max_H2_S[t in 1:Tmax], P_H2_S[t] <= Pmax_H2_S*UC_H2_S[t])
 @constraint(model, max_flux_CH4[t in 1:Tmax], flux_CH4_S_to_N[t] <= cap_CH4_S_to_N)
@@ -339,8 +367,7 @@ model = Model(HiGHS.Optimizer)
 
 #Pmin constraints
 @constraint(model, min_th[t in 1:Tmax, g in 1:Nth], Pmin_th[g]*UCth[t,g] <= Pth[t,g])
-@constraint(model, min_CH4_N[t in 1:Tmax, g in 1:N_CH4], Pmin_CH4_N[g]*UC_CH4_N[t,g] <= P_CH4_N[t,g] )
-@constraint(model, min_CH4_S[t in 1:Tmax, g in 1:N_CH4], P_CH4_S[t,g] >= Pmin_CH4_S[g]*UC_CH4_S[t,g])
+@constraint(model, min_CH4_S[t in 1:Tmax], P_CH4_S[t,N_CH4] >= Pmin_CH4_S[N_CH4]*UC_CH4_S[t])
 @constraint(model, min_H2_N[t in 1:Tmax], P_H2_N[t] >= Pmin_H2_N*UC_H2_N[t])
 @constraint(model, min_H2_S[t in 1:Tmax], P_H2_S[t] >= Pmin_H2_S*UC_H2_S[t])
 @constraint(model, min_flux_H2[t in 1:Tmax], flux_H2_S_to_N[t] >= - cap_H2_S_to_N)
@@ -350,42 +377,29 @@ for g in 1:Nth
         if (dmin[g] > 1)
             @constraint(model, [t in 2:Tmax], UCth[t,g]-UCth[t-1,g]==UPth[t,g]-DOth[t,g],  base_name = "fct_th_$g")
             @constraint(model, [t in 1:Tmax], UPth[t,g]+DOth[t,g]<=1,  base_name = "UPDOth_$g")
-            @constraint(model, UPth[1,g]==0,  base_name = "iniUPth_$g")
-            @constraint(model, DOth[1,g]==0,  base_name = "iniDOth_$g")
+            #@constraint(model, UPth[1,g]==0,  base_name = "iniUPth_$g")
+            #@constraint(model, DOth[1,g]==0,  base_name = "iniDOth_$g")
             @constraint(model, [t in dmin[g]:Tmax], UCth[t,g] >= sum(UPth[i,g] for i in (t-dmin[g]+1):t),  base_name = "dminUPth_$g")
             @constraint(model, [t in dmin[g]:Tmax], UCth[t,g] <= 1 - sum(DOth[i,g] for i in (t-dmin[g]+1):t),  base_name = "dminDOth_$g")
     end
 end
 
-for g in 1:N_CH4
-    if dmin_CH4_S[g] > 1
-        @constraint(model, [t in 2:Tmax],UC_CH4_S[t,g] - UC_CH4_S[t-1,g] == UP_CH4_S[t,g] - DO_CH4_S[t,g])
-        @constraint(model, [t in 1:Tmax],UP_CH4_S[t,g] + DO_CH4_S[t,g] <= 1)
-        @constraint(model, UP_CH4_S[1,g] == 0)
-        @constraint(model, DO_CH4_S[1,g] == 0)
-        @constraint(model, [t in dmin_CH4_S[g]:Tmax], UC_CH4_S[t,g] >= sum(UP_CH4_S[i,g] for i in t-dmin_CH4_S[g]+1:t))
-        @constraint(model, [t in dmin_CH4_S[g]:Tmax], UC_CH4_S[t,g] <= 1 - sum(DO_CH4_S[i,g] for i in t-dmin_CH4_S[g]+1:t))
-        #@constraint(model, [t in 1:dmin_CH4_S[g]-1], UC_CH4_S[t,g] >= sum(UP_CH4_S[i,g] for i in 1:t))
-        #@constraint(model, [t in 1:dmin_CH4_S[g]-1], UC_CH4_S[t,g] <= 1 - sum(DO_CH4_S[i,g] for i in 1:t))
-    end
+
+if dmin_CH4_S[N_CH4] > 1
+    @constraint(model, [t in 2:Tmax],UC_CH4_S[t] - UC_CH4_S[t-1] == UP_CH4_S[t] - DO_CH4_S[t])
+    @constraint(model, [t in 1:Tmax],UP_CH4_S[t] + DO_CH4_S[t] <= 1)
+    #@constraint(model, UP_CH4_S[1] == 0)
+    #@constraint(model, DO_CH4_S[1] == 0)
+    @constraint(model, [t in dmin_CH4_S[N_CH4]:Tmax], UC_CH4_S[t] >= sum(UP_CH4_S[i] for i in t-dmin_CH4_S[N_CH4]+1:t))
+    @constraint(model, [t in dmin_CH4_S[N_CH4]:Tmax], UC_CH4_S[t] <= 1 - sum(DO_CH4_S[i] for i in t-dmin_CH4_S[N_CH4]+1:t))
 end
 
-for g in 1:N_CH4
-    if dmin_CH4_N[g] > 1
-        @constraint(model, [t in 2:Tmax], UC_CH4_N[t,g] - UC_CH4_N[t-1,g] == UP_CH4_N[t,g] - DO_CH4_N[t,g])
-        @constraint(model, [t in 1:Tmax], UP_CH4_N[t,g] + DO_CH4_N[t,g] <= 1)
-        @constraint(model, UP_CH4_N[1,g] == 0)
-        @constraint(model, DO_CH4_N[1,g] == 0)
-        @constraint(model, [t in dmin_CH4_N[g]:Tmax], UC_CH4_N[t,g] >= sum(UP_CH4_N[i,g] for i in t-dmin_CH4_N[g]+1:t))
-        @constraint(model, [t in dmin_CH4_N[g]:Tmax], UC_CH4_N[t,g] <= 1 - sum(DO_CH4_N[i,g] for i in t-dmin_CH4_N[g]+1:t))
-    end
-end
 
 if dmin_H2_S > 1
     @constraint(model, [t in 2:Tmax], UC_H2_S[t] - UC_H2_S[t-1] == UP_H2_S[t] - DO_H2_S[t])
     @constraint(model, [t in 1:Tmax], UP_H2_S[t] + DO_H2_S[t] <= 1)
-    @constraint(model, UP_H2_S[1] == 0)
-    @constraint(model, DO_H2_S[1] == 0)
+    #@constraint(model, UP_H2_S[1] == 0)
+    #@constraint(model, DO_H2_S[1] == 0)
     @constraint(model, [t in dmin_H2_S:Tmax], UC_H2_S[t] >= sum(UP_H2_S[i] for i in t-dmin_H2_S+1:t))
     @constraint(model, [t in dmin_H2_S:Tmax], UC_H2_S[t] <= 1 - sum(DO_H2_S[i] for i in t-dmin_H2_S+1:t))
 end
@@ -456,35 +470,67 @@ end"""
 @constraint(model, stock_CH4_N[1] == stock_CH4_N_init)
 
 for g in 1:Nth
-    if init_UC && UCth_init_count[g] < dmin[g] && UCth_init_count[g] > 0
-        for i in 1:(dmin[g] - UCth_init_count[g])
-            @constraint(model, UCth[i, g] == 1)
+    if init_UC 
+        if UCth_init_count_on[g] < dmin[g] && UCth_init_count_on[g] > 0
+            for i in 1:(dmin[g] - UCth_init_count_on[g])
+                @constraint(model, UCth[i, g] == 1)
+            end
+        end
+        if UCth_init_count_off[g] < dmin[g] && UCth_init_count_off[g] > 0
+            for i in 1:(dmin[g] - UCth_init_count_off[g])
+                @constraint(model, UCth[i, g] == 0)
+            end
+        end
+    else 
+        @constraint(model, UPth[1,g]==0,  base_name = "iniUPth_$g")
+        @constraint(model, DOth[1,g]==0,  base_name = "iniDOth_$g")
+    end
+end
+
+
+if init_UC
+    if  UC_CH4_S_count_on < dmin_CH4_S[N_CH4] && UC_CH4_S_count_on > 0
+        for i in 1:(dmin_CH4_S[N_CH4] - UC_CH4_S_count_on)
+            @constraint(model, UC_CH4_S[i] == 1)
+        end
+    end 
+    if  UC_CH4_S_count_off < dmin_CH4_S[N_CH4] && UC_CH4_S_count_off > 0
+        for i in 1:(dmin_CH4_S[N_CH4] - UC_CH4_S_count_off)
+            @constraint(model, UC_CH4_S[i] == 0)
+        end
+    end 
+else
+    @constraint(model, UP_CH4_S[1] == 0)
+    @constraint(model, DO_CH4_S[1] == 0)
+end
+
+if init_UC 
+    if UC_H2_S_count_on < dmin_H2_S && UC_H2_S_count_on > 0
+        for i in 1:(dmin_H2_S - UC_H2_S_count_on)
+            @constraint(model, UC_H2_S[i] == 1)
+        end
+    end
+    if UC_H2_S_count_off < dmin_H2_S && UC_H2_S_count_off > 0
+        for i in 1:(dmin_H2_S - UC_H2_S_count_off)
+            @constraint(model, UC_H2_S[i] == 0)
         end
     end
 end
 
-for g in 1:N_CH4
-    if init_UC && UC_CH4_S_count[g] < dmin_CH4_S[g] && UC_CH4_S_count[g] > 0
-        for i in 1:(dmin_CH4_S[g] - UC_CH4_S_count[g])
-            @constraint(model, UC_CH4_S[i, g] == 1)
+if init_UC 
+    if UC_H2_N_count_on < dmin_H2_N && UC_H2_N_count_on > 0
+        for i in 1:(dmin_H2_N - UC_H2_N_count_on)
+            @constraint(model, UC_H2_N[i] == 1)
         end
     end
-    if init_UC && UC_CH4_N_count[g] < dmin_CH4_N[g] && UC_CH4_N_count[g] > 0
-        for i in 1:(dmin_CH4_N[g] - UC_CH4_N_count[g])
-            @constraint(model, UC_CH4_N[i, g] == 1)
+    if UC_H2_N_count_off < dmin_H2_N && UC_H2_N_count_off > 0
+        for i in 1:(dmin_H2_N - UC_H2_N_count_off)
+            @constraint(model, UC_H2_N[i] == 0)
         end
     end
-end
-
-if init_UC && UC_H2_S_count < dmin_H2_S && UC_H2_S_count > 0
-    for i in 1:(dmin_H2_S - UC_H2_S_count)
-        @constraint(model, UC_H2_S[i] == 1)
-    end
-end
-if init_UC && UC_H2_N_count < dmin_H2_N && UC_H2_N_count > 0
-    for i in 1:(dmin_H2_N - UC_H2_N_count)
-        @constraint(model, UC_H2_N[i] == 1)
-    end
+else
+    @constraint(model, UP_H2_S[1] == 0)
+    @constraint(model, DO_H2_S[1] == 0)
 end
 
 
@@ -524,6 +570,10 @@ Puns_CH4_S_val = value.(Puns_CH4_S)
 Puns_CH4_N_val = value.(Puns_CH4_N)
 Puns_H2_S_val = value.(Puns_H2_S)
 Puns_H2_N_val = value.(Puns_H2_N)
+stock_STEP = value.(stock_STEP)
+stock_battery = value.(stock_battery)
+stock_CH4_S_val = value.(stock_CH4_S_val)
+stock_CH4_N_val = value.(stock_CH4_N_val)
 
 
 # new file created
@@ -540,7 +590,8 @@ for name in names
     write(f, "$(strip(name));")
 end
 
-write(f, "Hydro;STEP_pompage;STEP_turbinage;Batt_inj;Batt_sout;RES;Load;Net_load;")
+write(f, "Hydro;STEP_pompage;STEP_turbinage;Batt_inj;Batt_sout;RES;Load;Net_load;" *
+        "stock_STEP;stock_battery;stock_CH4_S;stock_CH4_N;")
 
 for g in 1:N_CH4
     write(f, "CH4_S_prod_$g;")
@@ -559,11 +610,12 @@ write(f,
 for g in 1:Nth
     write(f, "UCth_$g;")
 end
-for g in 1:N_CH4
-    write(f, "UC_CH4_S_$g;UC_CH4_N_$g;")
-end
+write(f, "UC_CH4_S;")
+
 
 write(f, "UC_H2_S;UC_H2_N\n")
+
+Tmax = Tmax - length_anneau_garde
 
 # --- DATA CSV (horaire) ---
 for t in 1:Tmax
@@ -582,6 +634,9 @@ for t in 1:Tmax
         "$(battery_charge[t]);$(battery_decharge[t]);" *
         "$(Pres[t]);$(load[t]);$(load[t]-Pres[t]);"
     )
+    # stocks horaires
+    write(f, "$(stock_STEP[t]);$(stock_battery[t]);$(stock_CH4_S_val[t]);$(stock_CH4_N_val[t]);")
+
 
     for g in 1:N_CH4
         write(f, "$(P_CH4_S_val[t,g]);")
@@ -610,33 +665,9 @@ for t in 1:Tmax
     for g in 1:Nth
         write(f, "$(Int(value(UCth[t,g])));")
     end
-    for g in 1:N_CH4
-        write(f, "$(Int(value(UC_CH4_S[t,g])));$(Int(value(UC_CH4_N[t,g])));")
-    end
-
+    write(f, "$(Int(value(UC_CH4_S[t])));")
     write(f, "$(Int(value(UC_H2_S[t])));$(Int(value(UC_H2_N[t])))\n")
 end
-
-
-# --- END-OF-WEEK STATE ---
-write(f, "\n#STATE_END\n")
-
-# ---- Continuous states (fin de semaine) ----
-write(f, "stock_STEP;$(fmt(value(stock_STEP[Tmax])))\n")
-write(f, "stock_battery;$(fmt(value(stock_battery[Tmax])))\n")
-write(f, "stock_CH4_S;$(fmt(value(stock_CH4_S[Tmax])))\n")
-write(f, "stock_CH4_N;$(fmt(value(stock_CH4_N[Tmax])))\n")
-
-# ---- Binary states fin de semaine ----
-for g in 1:Nth
-    write(f, "UCth_$g;$(fmt_int(value(UCth[Tmax,g])))\n")
-end
-for g in 1:N_CH4
-    write(f, "UC_CH4_S_$g;$(fmt_int(value(UC_CH4_S[Tmax,g])))\n")
-    write(f, "UC_CH4_N_$g;$(fmt_int(value(UC_CH4_N[Tmax,g])))\n")
-end
-write(f, "UC_H2_S;$(fmt_int(value(UC_H2_S[Tmax])))\n")
-write(f, "UC_H2_N;$(fmt_int(value(UC_H2_N[Tmax])))\n")
 
 # --- Close file ---
 close(f)

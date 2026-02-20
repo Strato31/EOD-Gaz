@@ -119,17 +119,17 @@ def plot_gaz_stock_with_min_max(data, imagename):
     # Conversion de la colonne 'Date' en format datetime
     data['Date'] = pd.to_datetime(data['Date'])
     
-    
     # récupération de la capacité de stockage totale du gaz depuis l'Excel en K4
-
     # Charger le fichier Excel
     excel = load_workbook("Donnees_elec_gaz.xlsx")["Données_gaz"]
     # Accéder à la cellule K4
-    capa_stock = excel["K4"].value*1000000 # conversion en MWh
+    capa_stock = excel["K4"].value
 
-    # Regroupement des données par jour pour obtenir les min et max quotidiens
-    daily_min = data.groupby(data['Date'].dt.date)['CH4_N_stock'].min()
-    daily_max = data.groupby(data['Date'].dt.date)['CH4_N_stock'].max()
+
+    # Regroupement des données par jour pour obtenir les min et max quotidiens, en sommant N et S pour obtenir le stockage total
+    data['CH4_stock'] = data['CH4_N_stock'] + data['CH4_S_stock'] # Stockage total de gaz (Nord + Sud)
+    daily_min = (data.groupby(data['Date'].dt.date)['CH4_stock'].min())/1000000 # conversion en TWh
+    daily_max = (data.groupby(data['Date'].dt.date)['CH4_stock'].max())/1000000 # conversion en TWh
 
     # Création de l'axe x basé sur les dates quotidiennes
     daily_dates = daily_min.index 
@@ -151,9 +151,9 @@ def plot_gaz_stock_with_min_max(data, imagename):
     plt.plot(daily_dates, lower_bound, label='Borne quotidienne min', color='orange', linestyle='--')
     plt.plot(daily_dates, upper_bound, label='Borne quotidienne max', color='red', linestyle='--')
 
-    plt.title('Évolution du stockage de gaz (Nord) avec bornes et intervalles quotidiens')
+    plt.title('Évolution du stockage de gaz avec bornes et intervalles quotidiens')
     plt.xlabel('Date')
-    plt.ylabel('Volume (MWh)')
+    plt.ylabel('Volume (TWh)')
     plt.legend()
     plt.grid()
 

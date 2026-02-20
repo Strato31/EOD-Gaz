@@ -1,10 +1,10 @@
 """
-results : données complètes
-results_short : données pour une semaine spécifique
-
+merge_weeks() : fusionner les fichiers de chaque semaine en un seul fichier pour l'année complète
 agregate_data_by_energy_type(data, energy_type_map) : sommer les colonnes par type d'énergie
-plot_stackplot(x, data, column_labels) : tracer les courbes empilées pour les types d'énergie
+plot_stackplot_energie(x, data, imagename) : tracer les courbes empilées pour les types d'énergie
 print_up_rates(data) : print les taux d'allumage
+plot_gaz_stock_with_min_max(data, imagename) : tracer l'évolution du stockage de gaz avec les min et max quotidiens et les bornes à ne pas franchir
+group_by_day(data) : regrouper les données par jour et calculer la somme pour chaque jour
 
 """
 
@@ -37,6 +37,7 @@ energy_type_map = {
 }
 
 def merge_weeks():
+    """Fusionne les fichiers de chaque semaine en un seul fichier pour l'année complète"""
     path = './Run_by_week_V1/Results/'
     with open('year.csv', 'w', newline='') as year:
         for f in os.listdir(path):
@@ -171,7 +172,9 @@ def group_by_day(data):
     return daily_data
 
 
-# appel des fonctions, tests
+##############################
+# appel des fonctions, tests #
+##############################
 
 merge_weeks()
 
@@ -179,17 +182,18 @@ merge_weeks()
 results = pd.read_csv('year.csv', sep=',')
 results.columns = results.columns.str.strip()  # Retirer les espaces dans les noms de colonnes
 
-column_labels = results.columns.tolist() # Liste des labels des colonnes
-x_total = np.arange(len(results)) # Axe des x pour une année complète
-
-# Sélection d'une semaine spécifique (par exemple, de l'index 100 à 268)
+# Sélection d'une période spécifique
 results_short = results.iloc[100:269, :]
 x_short = np.arange(len(results_short)) # Axe des x pour la semaine sélectionnée
 
+# Aggrégation des données par type d'énergie
 aggregated_results = agregate_data_by_energy_type(results, energy_type_map)
-# plot_stackplot_energie(x_total, aggregated_results, "stackplot_energie")
+# Print des taux d'allumage pour chaque type de centrale
 print_up_rates(aggregated_results)
+# Plot des min/max atteints pour le stockage de gaz et des bornes à ne pas franchir
 plot_gaz_stock_with_min_max(results, "gaz_stock_with_min_max")
 
+# Groupement des données par jour pour tracer les courbes empilées à l'échelle quotidienne
 daily_year = group_by_day(aggregated_results)
+# Plot des courbes empilées pour les types d'énergie à l'échelle quotidienne
 plot_stackplot_energie(np.arange(len(daily_year)), daily_year, "stackplot_energie_daily") 

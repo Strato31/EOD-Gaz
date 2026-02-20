@@ -80,7 +80,8 @@ end
 
 #Tmax = 168 #optimization for 1 week (7*24=168 hours)
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
-length_anneau_garde = 72 #heures
+length_anneau_garde_days = 7 #jours
+length_anneau_garde = length_anneau_garde_days*24 #heures
 T_1week = 168
 t_start = week_id * T_1week + 1
 t_end   = (week_id + 1) * T_1week + length_anneau_garde
@@ -88,7 +89,7 @@ t_end   = (week_id + 1) * T_1week + length_anneau_garde
 Tmax = 168 + length_anneau_garde
 indisp_th = 0.1
 
-date_start = DateTime(2023, 1, 1, 0, 0, 0) + Week(week_id)
+date_start = DateTime(2020, 1, 1, 0, 0, 0) + Week(week_id)
 dates = date_start .+ Hour.(0:Tmax-1)
 
 target_date_stock_CH4 = Date(2023,10,1)  # 1er octobre 2023
@@ -484,6 +485,8 @@ for g in 1:Nth
     else 
         @constraint(model, UPth[1,g]==0,  base_name = "iniUPth_$g")
         @constraint(model, DOth[1,g]==0,  base_name = "iniDOth_$g")
+        @constraint(model, [t in 1:dmin[g]-1], UCth[t,g] >= sum(UPth[i,g] for i in 1:t), base_name = "dminUPth_$(g)_init")
+        @constraint(model, [t in 1:dmin[g]-1], UCth[t,g] <= 1-sum(DOth[i,g] for i in 1:t), base_name = "dminDOth_$(g)_init")
     end
 end
 
@@ -502,6 +505,8 @@ if init_UC
 else
     @constraint(model, UP_CH4_S[1] == 0)
     @constraint(model, DO_CH4_S[1] == 0)
+    @constraint(model, [t in 1:dmin_CH4_S[N_CH4]-1], UC_CH4_S[t] >= sum(UP_CH4_S[i] for i in 1:t))
+    @constraint(model, [t in 1:dmin_CH4_S[N_CH4]-1], UC_CH4_S[t] <= 1-sum(DO_CH4_S[i] for i in 1:t))
 end
 
 if init_UC 
@@ -515,6 +520,11 @@ if init_UC
             @constraint(model, UC_H2_S[i] == 0)
         end
     end
+else
+    @constraint(model, UP_H2_S[1] == 0)
+    @constraint(model, DO_H2_S[1] == 0)
+    @constraint(model, [t in 1:dmin_H2_S-1], UC_H2_S[t] >= sum(UP_H2_S[i] for i in 1:t))
+    @constraint(model, [t in 1:dmin_H2_S-1], UC_H2_S[t] <= 1-sum(DO_H2_S[i] for i in 1:t))
 end
 
 if init_UC 
@@ -529,8 +539,10 @@ if init_UC
         end
     end
 else
-    @constraint(model, UP_H2_S[1] == 0)
-    @constraint(model, DO_H2_S[1] == 0)
+    @constraint(model, UP_H2_N[1] == 0)
+    @constraint(model, DO_H2_N[1] == 0)
+    @constraint(model, [t in 1:dmin_H2_N-1], UC_H2_N[t] >= sum(UP_H2_N[i] for i in 1:t))
+    @constraint(model, [t in 1:dmin_H2_N-1], UC_H2_N[t] <= 1-sum(DO_H2_N[i] for i in 1:t))
 end
 
 

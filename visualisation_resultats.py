@@ -125,11 +125,11 @@ def plot_gaz_stock_with_min_max(data, imagename):
     # Charger le fichier Excel
     excel = load_workbook("Donnees_elec_gaz.xlsx")["Données_gaz"]
     # Accéder à la cellule K4
-    capa_stock = excel["K4"].value*1000000 # conversion en MWh
+    capa_stock = excel["K4"].value
 
     # Regroupement des données par jour pour obtenir les min et max quotidiens
-    daily_min = data.groupby(data['Date'].dt.date)['CH4_N_stock'].min()
-    daily_max = data.groupby(data['Date'].dt.date)['CH4_N_stock'].max()
+    daily_min = (data.groupby(data['Date'].dt.date)['CH4_N_stock'].min())/1000000 # conversion en TWh
+    daily_max = (data.groupby(data['Date'].dt.date)['CH4_N_stock'].max())/1000000 # conversion en TWh
 
     # Création de l'axe x basé sur les dates quotidiennes
     daily_dates = daily_min.index 
@@ -153,7 +153,7 @@ def plot_gaz_stock_with_min_max(data, imagename):
 
     plt.title('Évolution du stockage de gaz (Nord) avec bornes et intervalles quotidiens')
     plt.xlabel('Date')
-    plt.ylabel('Volume (MWh)')
+    plt.ylabel('Volume (TWh)')
     plt.legend()
     plt.grid()
 

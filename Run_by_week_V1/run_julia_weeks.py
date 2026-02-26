@@ -11,7 +11,7 @@ for week in tqdm(range(52)):
     
     subprocess.run([
         "julia",
-        "Optim_mix_per_week.jl",
+        "Optim_mix_per_week_target_points_per_month.jl",
         str(week)
     ])
     

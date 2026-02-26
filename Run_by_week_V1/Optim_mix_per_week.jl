@@ -80,7 +80,7 @@ end
 
 #Tmax = 168 #optimization for 1 week (7*24=168 hours)
 #Tmax = 61320 #optimization for 1 year (7*24*52 = 61 320 hours)
-length_anneau_garde_days = 7 #jours
+length_anneau_garde_days = 0 #jours
 length_anneau_garde = length_anneau_garde_days*24 #heures
 T_1week = 168
 t_start = week_id * T_1week + 1

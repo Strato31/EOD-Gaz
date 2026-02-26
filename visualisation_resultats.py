@@ -35,20 +35,31 @@ energy_type_map = {
     'Charge': ['Load'],
     'Charge Nette': ['Net_load']
 }
-
 def merge_weeks():
     """Fusionne les fichiers de chaque semaine en un seul fichier pour l'année complète"""
-    path = './Run_by_week_V1/Results/'
-    with open('year.csv', 'w', newline='') as year:
-        for f in os.listdir(path):
-            week_data = pd.read_csv(path + f, sep=';', encoding='ISO-8859-1')
-            week_data.to_csv(year, index=False, header=not year.tell())
-    year.close()
+    path = './Scenarios/Results_13/'
+    # On précise l'encodage 'utf-8-sig' pour l'écriture
+    with open('year.csv', 'w', newline='', encoding='utf-8-sig') as year:
+        # Trier les fichiers permet d'avoir les semaines dans l'ordre (S0, S1, S2...)
+        files = sorted([f for f in os.listdir(path) if f.endswith('.csv')])
+        
+        for i, f in enumerate(files):
+            file_path = os.path.join(path, f)
+            # On lit en utf-8 si vos fichiers sources sont corrects à l'extérieur d'Excel
+            # Si Julia produit du ISO-8859-1, gardez ISO-8859-1 ici.
+            week_data = pd.read_csv(file_path, sep=';', encoding='utf-8')
+            
+            # On écrit dans le fichier 'year' ouvert précédemment
+            # header=True uniquement pour le premier fichier (i == 0)
+            week_data.to_csv(year, index=False, header=(i == 0), sep=',') 
+    
+    print(f"Fusion terminée : {len(files)} fichiers combinés dans year.csv")
 
 def agregate_data_by_energy_type(data, energy_type_map):
     "Somme ensemble les colonnes correspondant à un même type d'énergie"
     aggregated_data = pd.DataFrame()
     aggregated_data['Date'] = data['Date']
+    print(aggregated_data)
     for energy_type, columns in energy_type_map.items():
         aggregated_data[energy_type] = data[columns].sum(axis=1)
 
@@ -178,9 +189,18 @@ def group_by_day(data):
 
 merge_weeks()
 
-# Chargement des données
+import unicodedata
+
 results = pd.read_csv('year.csv', sep=',')
-results.columns = results.columns.str.strip()  # Retirer les espaces dans les noms de colonnes
+
+# 1. Supprimer les espaces invisibles
+results.columns = results.columns.str.strip()
+
+# 2. Normaliser l'encodage Unicode (NFC) pour les caractères accentués
+results.columns = [unicodedata.normalize('NFC', col) for col in results.columns]
+
+# 3. Vérification immédiate (à laisser pour le debug)
+print("Colonnes réellement lues par Python :", results.columns.tolist())
 
 # Sélection d'une période spécifique
 results_short = results.iloc[100:269, :]

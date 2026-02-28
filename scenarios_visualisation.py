@@ -116,7 +116,7 @@ def group_by_day(data):
 
 base_scenarios_dir = './Scenarios'
 
-for i in range(24):  # De 00 à 23
+for i in range(16,24):  # De 00 à 23
     scenario_id = f"{i:02d}"
     scenario_folder = f"Results_{scenario_id}"
     scenario_path = os.path.join(base_scenarios_dir, scenario_folder)

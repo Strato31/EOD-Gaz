@@ -174,7 +174,9 @@ low_lev_CH4  = low_lev_CH4_full[t_start:t_end]
 c_slack_CH4 = 1e6  # €/MWh (à ajuster selon ton modèle)
 
 
-"""# On cherche si le premier jour d'un mois se trouve dans notre plage de dates
+"""
+# --- Point cible mensuel (tous les mois) ---
+# On cherche si le premier jour d'un mois se trouve dans notre plage de dates
 idx_premier_du_mois = findfirst(d -> Dates.day(d) == 1, dates[1:168])
 
 if !isnothing(idx_premier_du_mois)
@@ -189,7 +191,7 @@ if !isnothing(idx_premier_du_mois)
 end
 """
 
-# --- Modification : Point cible trimestriel (tous les 3 mois) ---
+# --- Point cible trimestriel (tous les 3 mois) ---
 
 # Définition des mois cibles (Exemple : début de chaque trimestre)
 # 1: Janvier, 4: Avril, 7: Juillet, 10: Octobre

@@ -26,15 +26,21 @@ energy_type_map = {
 # --- Fonctions modifiées pour accepter des chemins ---
 
 def merge_weeks(scenario_path, output_csv):
-    """Fusionne les fichiers d'un scénario spécifique."""
-    files = sorted([f for f in os.listdir(scenario_path) if f.endswith('.csv') and f != 'year.csv'])
+    """Fusionne uniquement les fichiers hebdomadaires valides."""
+    # On ne prend que les fichiers commençant par 'result_S' pour éviter les fichiers agrégés
+    files = sorted([f for f in os.listdir(scenario_path) 
+                    if f.startswith('result_S') and f.endswith('.csv')])
+    
     if not files:
         return False
     
     with open(output_csv, 'w', newline='', encoding='utf-8-sig') as year:
         for i, f in enumerate(files):
             file_path = os.path.join(scenario_path, f)
+            # Lecture du fichier de la semaine (séparateur point-virgule)
             week_data = pd.read_csv(file_path, sep=';', encoding='utf-8')
+            
+            # Écriture dans le fichier annuel (séparateur virgule)
             week_data.to_csv(year, index=False, header=(i == 0), sep=',') 
     return True
 
@@ -116,7 +122,7 @@ def group_by_day(data):
 
 base_scenarios_dir = './Scenarios'
 
-for i in range(16,24):  # De 00 à 23
+for i in range(24):  # De 00 à 23
     scenario_id = f"{i:02d}"
     scenario_folder = f"Results_{scenario_id}"
     scenario_path = os.path.join(base_scenarios_dir, scenario_folder)

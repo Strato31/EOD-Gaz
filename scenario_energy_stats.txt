@@ -1,0 +1,24 @@
+Scénario 01:
+  Nucleaire: 75.30%
+  Gaz: 7.47%
+  Charbon: 9.34%
+  Biomasse: 0.17%
+  Fioul: 0.24%
+  Hydro: 5.34%
+  STEP Pompage: 1.25%
+  STEP Turbinage: 0.92%
+  Batterie Injection: 0.00%
+  Batterie Soutirage: 0.00%
+
+Scénario 23:
+  Nucleaire: 72.26%
+  Gaz: 7.35%
+  Charbon: 9.69%
+  Biomasse: 0.16%
+  Fioul: 0.23%
+  Hydro: 7.73%
+  STEP Pompage: 1.47%
+  STEP Turbinage: 1.10%
+  Batterie Injection: 0.00%
+  Batterie Soutirage: 0.00%
+

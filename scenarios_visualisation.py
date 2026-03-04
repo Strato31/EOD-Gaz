@@ -88,6 +88,55 @@ def plot_stackplot_energie(x, data, save_path, freq='Daily'):
     plt.savefig(save_path)
     plt.close()
 
+def plot_stackplot_week_hourly(data, week_number, save_path):
+    """Affiche le stackplot électrique heure par heure pour une semaine donnée."""
+    df_hourly = data.copy()
+    df_hourly['Date'] = pd.to_datetime(df_hourly['Date'])
+    
+    # Filtrage de la semaine
+    target_week = df_hourly[df_hourly['Date'].dt.isocalendar().week == week_number].copy()
+    
+    if target_week.empty:
+        return
+
+    column_labels = target_week.columns.tolist()
+    # Correction pour éviter le Warning "SettingWithCopy"
+    for col in column_labels:
+        if col in ['STEP Pompage', 'Batterie Soutirage']:
+            target_week.loc[:, col] = -target_week[col]
+
+    plt.figure(figsize=(12, 7))
+    x = np.arange(len(target_week))
+    
+    if len(column_labels) <= 20:
+        colors = ['yellow', 'grey', 'black', 'green', 'black', 'blue', 'pink', 'purple', 'orange', 'red']
+        plt.stackplot(x, *[target_week.iloc[:, i] for i in range(1, 10)], 
+                      labels=column_labels[1:10], colors=colors)
+    else:
+        colors = sns.color_palette("hsv", len(column_labels))
+        plt.stackplot(x, *[target_week.iloc[:, i] for i in range(1, len(column_labels))], 
+                      labels=column_labels[1:], colors=colors)
+
+    if 'Charge Nette' in target_week.columns:
+        plt.plot(x, target_week['Charge Nette'], color='black', label='Charge Nette', ls='--', lw=1)
+
+    plt.title(f'Équilibre Électrique Horaire - Semaine {week_number}')
+    plt.xlabel('Heures de la semaine')
+    plt.ylabel('Puissance (MW)')
+    
+    # --- CORRECTION ICI ---
+    # On génère 7 points (le début de chaque jour)
+    ticks = np.arange(0, 7 * 24, 24) 
+    days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    plt.xticks(ticks, days)
+    # -----------------------
+
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(axis='x', linestyle=':', alpha=0.5)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
 def plot_elec_gaz(x, data, save_path):
     """Plot les courbes élec juste gaz."""
     gaz_elec_data = data[["Gazby","Omaïgaz1","Omaïgaz2","Igaznodon1","Igaznodon2","Cogénérations","Pégaz","Samagaz1","Samagaz2","Gastafiore"]]
@@ -101,13 +150,43 @@ def plot_elec_gaz(x, data, save_path):
     plt.savefig(save_path)
     plt.close()
 
-def plot_stackplot_gaz(x, data, save_path):
-    """Plot des productions de gaz (CH4 et H2) par moyen de production."""
-    gaz_prod_data = data[['CH4_S_prod_1', 'CH4_N_prod_1', 'CH4_N_prod_2', 'H2_S_prod', 'H2_N_prod','CH4_S_prod_2']]
-    gaz_prod_labels = ['Méthanisation Sud', 'Méthanisation Nord', 'Pyrogazeification', 'Electrolyse (H2)', 'Pyroreformage (H2)', 'GNL'] # TODO
+def plot_stackplot_ch4(x, data, save_path):
+    """Plot des productions de CH4 (Méthanisation, Pyro, GNL)."""
+    # Sélection des colonnes spécifiques au CH4
+    ch4_cols = ['CH4_S_prod_1', 'CH4_N_prod_1', 'CH4_N_prod_2', 'CH4_S_prod_2']
+    ch4_prod_data = data[ch4_cols]
+    ch4_labels = ['Méthanisation Sud', 'Méthanisation Nord', 'Pyrogazeification', 'GNL']
+    
     plt.figure(figsize=(10, 6))
-    plt.stackplot(x, *[gaz_prod_data.iloc[:, i] for i in range(gaz_prod_data.shape[1])], labels=gaz_prod_labels, colors=['red', 'orange', 'yellow', 'pink', 'blue', 'green'])
-    plt.title('Production de gaz (CH4 et H2)')
+    plt.stackplot(x, *[ch4_prod_data.iloc[:, i] for i in range(ch4_prod_data.shape[1])], 
+                  labels=ch4_labels, 
+                  colors=['red', 'orange', 'yellow', 'green'])
+    plt.ylim(0, 600000)
+    # Seuil de production maximale
+    valeur_seuil = 350000
+    plt.axhline(y=valeur_seuil, color='red', linestyle='--', linewidth=1.5, label='Production maximale')
+    
+    plt.title('Production de Méthane (CH4)')
+    plt.xlabel('Date')
+    plt.ylabel('Puissance (MW)')
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_stackplot_h2(x, data, save_path):
+    """Plot des productions d'Hydrogène (Electrolyse, Pyroreformage)."""
+    # Sélection des colonnes spécifiques à l'H2
+    h2_cols = ['H2_S_prod', 'H2_N_prod']
+    h2_prod_data = data[h2_cols]
+    h2_labels = ['Electrolyse (H2)', 'Pyroreformage (H2)']
+    
+    plt.figure(figsize=(10, 6))
+    plt.stackplot(x, *[h2_prod_data.iloc[:, i] for i in range(h2_prod_data.shape[1])], 
+                  labels=h2_labels, 
+                  colors=['pink', 'blue'])
+    
+    plt.title("Production d'Hydrogène (H2)")
     plt.xlabel('Date')
     plt.ylabel('Puissance (MW)')
     plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
@@ -142,17 +221,183 @@ def plot_gaz_stock_with_min_max(data, save_path):
     plt.savefig(save_path)
     plt.close()
 
-def plot_flux_gaz(x, data, save_path):
-    """Plot flux CH4 et H2 N-S au cours de l'année."""
-    flux_data = data[['CH4_flux_S_N', 'H2_flux_S_N']]
-    flux_labels = ['Flux CH4 Sud->Nord', 'Flux H2 Sud->Nord']
+def plot_flux_ch4(x, data, save_path):
+    """Plot flux CH4 avec zones colorées pour identifier l'importateur."""
     plt.figure(figsize=(10, 6))
-    for i in range(2):
-        plt.plot(x, flux_data.iloc[:, i], label=flux_labels[i])
-    plt.title('Flux de gaz (CH4 et H2) au cours de l\'année')
+    
+    # Récupération de la série de données
+    flux_values = data['CH4_flux_S_N']
+    
+    # On trace la courbe principale
+    plt.plot(x, flux_values, label='Flux CH4 Sud->Nord', color='black', linewidth=1.5)
+    
+    # Zone au-dessus de 0 : Le Nord importe (Flux Sud -> Nord positif)
+    plt.fill_between(x, flux_values, 0, where=(flux_values >= 0), 
+                     interpolate=True, color='blue', alpha=0.2, label='Le Nord importe')
+    
+    # Zone au-dessous de 0 : Le Sud importe (Flux Sud -> Nord négatif)
+    plt.fill_between(x, flux_values, 0, where=(flux_values < 0), 
+                     interpolate=True, color='orange', alpha=0.2, label='Le Sud importe')
+    
+    # Ligne de référence à 0 pour bien marquer la limite
+    plt.axhline(0, color='black', linewidth=0.8, linestyle='-')
+    
+    # Fixer l'échelle de l'axe Y
+    plt.ylim(-300000, 120000)
+    
+    plt.title('Flux de Méthane (CH4) : Direction et montant des échanges')
+    plt.xlabel('Date')
+    plt.ylabel('Puissance (MW)')
+    
+    # La légende inclura automatiquement les zones colorées
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.4)
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_flux_ch4_week_hourly(data, week_number, save_path):
+    """
+    Plot le flux CH4 heure par heure pour une semaine donnée avec zones colorées.
+    """
+    df_hourly = data.copy()
+    df_hourly['Date'] = pd.to_datetime(df_hourly['Date'])
+    
+    # Filtrage de la semaine cible
+    target_week = df_hourly[df_hourly['Date'].dt.isocalendar().week == week_number].copy()
+    
+    if target_week.empty:
+        print(f"Semaine {week_number} non trouvée.")
+        return
+
+    plt.figure(figsize=(12, 7))
+    x = np.arange(len(target_week))
+    flux_values = target_week['CH4_flux_S_N']
+    
+    # Courbe principale
+    plt.plot(x, flux_values, color='black', linewidth=1.5, label='Flux CH4 Sud->Nord')
+    
+    # Zone au-dessus de 0 : Le Nord importe
+    plt.fill_between(x, flux_values, 0, where=(flux_values >= 0), 
+                     interpolate=True, color='blue', alpha=0.2, label='Le Nord importe')
+    
+    # Zone au-dessous de 0 : Le Sud importe
+    plt.fill_between(x, flux_values, 0, where=(flux_values < 0), 
+                     interpolate=True, color='orange', alpha=0.2, label='Le Sud importe')
+    
+    # Ligne de référence zéro
+    plt.axhline(0, color='black', linewidth=1, linestyle='-')
+    
+    # Échelle fixe (ajustée à vos flux habituels)
+    plt.ylim(-300000/24, 120000/24)
+    
+    # Graduation des jours
+    ticks = np.arange(0, 7 * 24, 24)
+    days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    plt.xticks(ticks, days)
+    
+    plt.title(f'Flux de Méthane (CH4) - Horaire - Semaine {week_number}')
+    plt.xlabel('Heures de la semaine')
+    plt.ylabel('Puissance (MW)')
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.4)
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_flux_h2(x, data, save_path):
+    """Plot flux H2 N-S au cours de l'année avec échelle fixe."""
+    plt.figure(figsize=(10, 6))
+    
+    # On trace le flux H2
+    plt.plot(x, data['H2_flux_S_N'], label='Flux H2 Sud->Nord', color='cyan')
+    
+    # Fixer l'échelle de l'axe Y
+    #plt.ylim(0, 500000)
+    
+    plt.title('Flux d\'Hydrogène (H2) au cours de l\'année')
     plt.xlabel('Date')
     plt.ylabel('Puissance (MW)')
     plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_stock_STEP(x, data, save_path):
+    """Plot le stock de la STEP au cours de l'année."""
+    plt.figure(figsize=(10, 6))
+    
+    # On trace le flux H2
+    plt.plot(x, data['stock_STEP'], label='Niveau de stock STEP', color='blue')
+    
+    plt.ylim(-100000,3500000)
+    plt.title('Stock STEP au cours de l\'année')
+    plt.xlabel('Date')
+    plt.ylabel('Puissance stockée (MW)')
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_stock_STEP_week_hourly(data, week_number, save_path):
+    """
+    Plot le niveau de stock de la STEP heure par heure pour une semaine donnée.
+    """
+    df_hourly = data.copy()
+    df_hourly['Date'] = pd.to_datetime(df_hourly['Date'])
+    
+    # Filtrage de la semaine cible
+    target_week = df_hourly[df_hourly['Date'].dt.isocalendar().week == week_number].copy()
+    
+    if target_week.empty:
+        print(f"Semaine {week_number} non trouvée.")
+        return
+
+    plt.figure(figsize=(12, 7))
+    x = np.arange(len(target_week))
+    
+    # On trace le niveau de stock
+    plt.plot(x, target_week['stock_STEP'], color='blue', linewidth=2, label='Niveau de stock STEP')
+    
+    # Remplissage sous la courbe pour mieux voir le volume
+    plt.fill_between(x, target_week['stock_STEP'], 0, color='blue', alpha=0.1)
+    
+    # Échelle fixe identique à votre fonction globale pour faciliter la comparaison
+    #plt.ylim(-100000/24, 3500000/24)
+    
+    # Graduation des jours
+    ticks = np.arange(0, 7 * 24, 24)
+    days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    plt.xticks(ticks, days)
+    
+    plt.title(f'Niveau du Stock STEP - Horaire - Semaine {week_number}')
+    plt.xlabel('Heures de la semaine')
+    plt.ylabel('Énergie stockée (MWh)')
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_stock_battery(x, data, save_path):
+    """Plot le niveau de stock théorique des batteries (différence cumulée)."""
+    plt.figure(figsize=(10, 6))
+    
+    plt.plot(x, data['stock_battery'], label='Niveau de stock des batteries', color='blue')
+    
+    plt.title('Évolution du stock Batterie au cours de l\'année')
+    plt.xlabel('Date')
+    plt.ylabel('Énergie stockée cumulée (MWh)')
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
@@ -221,12 +466,16 @@ def visu_scenarios(scenarios=[range(24)]):
         plot_gaz_stock_with_min_max(results, gaz_plot_path)
 
         # Plot Flux Gaz Daily
-        flux_plot_path = os.path.join(image_folder_path, "flux_gaz_daily.png")
-        plot_flux_gaz(np.arange(len(daily_results)), daily_results, flux_plot_path)
+        flux_plot_path_ch4 = os.path.join(image_folder_path, "flux_gaz_daily_CH4.png")
+        plot_flux_ch4(np.arange(len(daily_results)), daily_results, flux_plot_path_ch4)
+        flux_plot_path_h2 = os.path.join(image_folder_path, "flux_gaz_daily_H2.png")
+        plot_flux_h2(np.arange(len(daily_results)), daily_results, flux_plot_path_h2)
 
         # Plot Flux Gaz Weekly
-        flux_plot_path = os.path.join(image_folder_path, "flux_gaz_weekly.png")
-        plot_flux_gaz(np.arange(len(weekly_results)), weekly_results, flux_plot_path)
+        flux_plot_path_ch4 = os.path.join(image_folder_path, "flux_gaz_weekly_CH4.png")
+        plot_flux_ch4(np.arange(len(weekly_results)), weekly_results, flux_plot_path_ch4)
+        flux_plot_path_h2 = os.path.join(image_folder_path, "flux_gaz_weekly_H2.png")
+        plot_flux_h2(np.arange(len(weekly_results)), weekly_results, flux_plot_path_h2)
 
         # Groupement quotidien et Stackplot élec
         daily_year = group_by_day(aggregated_results)
@@ -243,8 +492,31 @@ def visu_scenarios(scenarios=[range(24)]):
         plot_elec_gaz(np.arange(len(weekly_results)), weekly_results, gaz_prod_weekly_path)
 
         # Plot Production Gaz
-        gaz_prod_path = os.path.join(image_folder_path, "gaz_production.png")
-        plot_stackplot_gaz(np.arange(len(daily_results)), daily_results, gaz_prod_path)
+        gaz_prod_path_CH4 = os.path.join(image_folder_path, "gaz_production_CH4.png")
+        plot_stackplot_ch4(np.arange(len(daily_results)), daily_results, gaz_prod_path_CH4)
+        gaz_prod_path_H2 = os.path.join(image_folder_path, "gaz_production_H2.png")
+        plot_stackplot_h2(np.arange(len(daily_results)), daily_results, gaz_prod_path_H2)
+
+        # Plot Stcok STEP
+        stock_step_path = os.path.join(image_folder_path, "stock_step.png")
+        plot_stock_STEP(np.arange(len(weekly_results)), weekly_results, stock_step_path)
+        
+        # Plot Stock STEP Horaire Semaine 30
+        step_hourly_path = os.path.join(image_folder_path, "stock_step_hourly_W30.png")
+        plot_stock_STEP_week_hourly(results, 30, step_hourly_path)
+
+        # Plot Stock Batterie
+        stock_battery_path = os.path.join(image_folder_path, "stock_battery.png")
+        plot_stock_battery(np.arange(len(daily_results)), daily_results, stock_battery_path)
+
+#       Plot Horaire spécifique (Exemple : Semaine 30 en été)
+        hourly_week_path = os.path.join(image_folder_path, "stackplot_hourly_W30.png")
+        # Attention : passez bien 'aggregated_results' car la fonction attend les types d'énergie
+        plot_stackplot_week_hourly(aggregated_results, 30, hourly_week_path)
+
+        # Plot Flux CH4 Horaire Semaine 30
+        flux_hourly_path = os.path.join(image_folder_path, "flux_ch4_hourly_W30.png")
+        plot_flux_ch4_week_hourly(results, 30, flux_hourly_path)
 
         print(f"Scénario {scenario_id} terminé. Images sauvegardées dans {image_folder_path}")
 

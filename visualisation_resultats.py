@@ -37,7 +37,19 @@ energy_type_map = {
 }
 def merge_weeks():
     """Fusionne les fichiers de chaque semaine en un seul fichier pour l'année complète"""
-    path = './Scenarios/Results_13/'
+    path = "Run_by_week_V1/Results"
+    files = sorted([f for f in os.listdir(path) if f.endswith('.csv')])
+    
+    combined_df = []
+    for i, f in enumerate(files):
+        # Read each file
+        df = pd.read_csv(os.path.join(path, f), sep=',') # Ensure sep matches your files
+        combined_df.append(df)
+    
+    # Concatenate all dataframes into one
+    final_df = pd.concat(combined_df, ignore_index=True)
+    final_df.to_csv('year.csv', index=False)
+    print(f"Fusion terminée : {len(files)} fichiers combinés dans year.csv")
     # On précise l'encodage 'utf-8-sig' pour l'écriture
     with open('year.csv', 'w', newline='', encoding='utf-8-sig') as year:
         # Trier les fichiers permet d'avoir les semaines dans l'ordre (S0, S1, S2...)
